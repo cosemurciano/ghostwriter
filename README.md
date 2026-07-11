@@ -58,7 +58,16 @@ vendor/bin/phpunit   # unit test
       budget resume, capitoli, riscrittura/versioni/ripristino blocchi,
       export con download autenticato, temi, skills)
 - [ ] 6. Copertina e preflight/export end-to-end
-- [ ] 7. Traduzioni (progetti derivati + glossario)
+- [x] **7. Traduzioni** — DerivedProjectFactory (nuovo gw_project con
+      derived_from e lingua target, gerarchia capitoli clonata 1:1 con
+      mapping _gw_source_chapter_id, dossier proprio); GlossaryService
+      (candidati dal dossier sorgente, glossario nel dossier derivato);
+      ProposeGlossaryJob e TranslateChapterJob (blocco per blocco, id
+      invarianti verificati con retry mirato, glossario vincolante nel
+      contesto, titolo post aggiornato); PipelineRouter sulla macchina a
+      stati translation (glossario approvato → traduzione sequenziale →
+      review); REST: derive, glossary edit/approve; budget cap anche sui
+      derivati
 - [ ] 8. Admin UI rifinita
 
 ## Deviazioni dalla spec

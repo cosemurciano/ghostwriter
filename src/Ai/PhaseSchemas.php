@@ -25,6 +25,8 @@ final class PhaseSchemas {
 			AiRequest::PHASE_REVIEW   => $this->chapter_content_schema(),
 			AiRequest::PHASE_SYNOPSIS => self::synopsis_schema(),
 			AiRequest::PHASE_REWRITE  => $this->block_schema(),
+			AiRequest::PHASE_TRANSLATION => $this->chapter_content_schema(),
+			AiRequest::PHASE_GLOSSARY => self::glossary_schema(),
 			default                   => throw new \InvalidArgumentException( "Fase senza schema: {$phase}" ),
 		};
 	}
@@ -54,6 +56,33 @@ final class PhaseSchemas {
 		return array(
 			'$ref'        => '#/definitions/block',
 			'definitions' => $full['definitions'] ?? array(),
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function glossary_schema(): array {
+		return array(
+			'type'       => 'object',
+			'required'   => array( 'glossary' ),
+			'properties' => array(
+				'glossary' => array(
+					'type'  => 'array',
+					'items' => array(
+						'type'       => 'object',
+						'required'   => array( 'source_term', 'target_term' ),
+						'properties' => array(
+							'source_term' => array( 'type' => 'string' ),
+							'target_term' => array( 'type' => 'string' ),
+							'note'        => array(
+								'type'        => 'string',
+								'description' => "Es. 'non tradurre, è un realia'; 'maiuscolo solo alla prima occorrenza'",
+							),
+						),
+					),
+				),
+			),
 		);
 	}
 

@@ -81,6 +81,18 @@ final class ContextComposer {
 		if ( ! empty( $ctx['feedback'] ) ) {
 			$parts[] = 'FEEDBACK DELL\'UTENTE (il motivo della riscrittura): ' . (string) $ctx['feedback'];
 		}
+		if ( ! empty( $ctx['glossary'] ) ) {
+			$parts[] = "GLOSSARIO APPROVATO (vincolante, coerenza dal capitolo 1 all'ultimo):\n" . self::json( $ctx['glossary'] );
+		}
+		if ( ! empty( $ctx['source_content'] ) ) {
+			$parts[] = "CAPITOLO SORGENTE DA TRADURRE (formato intermedio; gli id dei blocchi NON cambiano):\n" . self::json( $ctx['source_content'] );
+		}
+		if ( ! empty( $ctx['candidate_terms'] ) ) {
+			$parts[] = "TERMINI CANDIDATI DAL DOSSIER SORGENTE:\n" . self::json( $ctx['candidate_terms'] );
+		}
+		if ( ! empty( $ctx['source_language'] ) && ! empty( $ctx['target_language'] ) ) {
+			$parts[] = 'LINGUE: da ' . (string) $ctx['source_language'] . ' a ' . (string) $ctx['target_language'] . '.';
+		}
 		if ( ! empty( $ctx['validation_errors'] ) ) {
 			$parts[] = "ATTENZIONE: il tentativo precedente NON era conforme allo schema. Errori da correggere:\n" . self::json( $ctx['validation_errors'] );
 		}
@@ -126,6 +138,8 @@ final class ContextComposer {
 			AiRequest::PHASE_SYNOPSIS => 'FASE SINOSSI: riassumi il capitolo in 100-200 parole (ciò che i capitoli successivi devono sapere) e proponi gli aggiornamenti di continuità: terminologia introdotta, concetti coperti, promesse fatte al lettore.',
 			AiRequest::PHASE_REVIEW   => 'FASE REVISIONE: rivedi il capitolo nel suo formato intermedio. Correggi incoerenze col dossier, ripetizioni, transizioni deboli. Conserva id e type di ogni blocco; incrementa version SOLO dei blocchi effettivamente modificati.',
 			AiRequest::PHASE_REWRITE  => 'FASE RISCRITTURA: riscrivi il SOLO blocco indicato tenendo conto del feedback dell\'utente. Stesso id, stesso type. Usa i blocchi adiacenti solo per il raccordo. Restituisci esclusivamente il blocco riscritto.',
+			AiRequest::PHASE_GLOSSARY => 'FASE GLOSSARIO: dal materiale del progetto sorgente proponi il glossario di traduzione (source_term → target_term, con note dove servono: realia da non tradurre, maiuscole, falsi amici). Il glossario governa la coerenza terminologica dell\'intera traduzione.',
+			AiRequest::PHASE_TRANSLATION => 'FASE TRADUZIONE: traduci il capitolo sorgente blocco per blocco nella lingua target. VINCOLI: gli id dei blocchi restano IDENTICI (sono la chiave di mapping), i type non cambiano, il glossario approvato è vincolante, la struttura (note, fonti, figure con image_brief) si conserva; traduci anche meta.title e le caption. Riporta version = 1 su ogni blocco.',
 			default                   => '',
 		};
 
