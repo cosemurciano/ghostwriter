@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ghostwriter/dossier.schema.json",
+  "title": "Ghostwriter Project Dossier",
+  "description": "La memoria di continuità del progetto. Passato a OGNI chiamata di generazione al posto del testo integrale del libro: costo in token quasi costante indipendentemente da quanto libro è già scritto. Mantenuto dal plugin, aggiornato come ultimo passo della pipeline di ogni capitolo. Anche i progetti di traduzione hanno il proprio dossier nella lingua target.",
+  "type": "object",
+  "required": ["schema_version", "project_id", "brief", "outline"],
+  "properties": {
+
+    "schema_version": { "type": "string", "const": "1.0" },
+    "project_id": { "type": "integer" },
+    "updated_at": { "type": "string", "format": "date-time" },
+
+    "brief": {
+      "type": "object",
+      "description": "Parte statica: copiata dalla config di progetto all'avvio",
+      "properties": {
+        "thesis": { "type": "string" },
+        "audience": { "type": "string" },
+        "genre": { "type": "string" },
+        "language": { "type": "string" }
+      }
+    },
+
+    "outline": {
+      "type": "array",
+      "description": "Indice vivo del libro. Rispecchia la gerarchia dei gw_chapter (post_parent + menu_order). Modificabile in corsa: le modifiche aggiornano il dossier così i capitoli successivi ne tengono conto.",
+      "items": {
+        "type": "object",
+        "required": ["chapter_id", "title", "status"],
+        "properties": {
+          "chapter_id": { "type": "integer" },
+          "parent_id": { "type": ["integer", "null"] },
+          "order": { "type": "integer" },
+          "title": { "type": "string" },
+          "brief": { "type": "string", "description": "2-3 frasi: obiettivo del capitolo. Scritto in fase outline." },
+          "planned_sources": { "type": "array", "items": { "type": "string" }, "description": "source_id delle fonti principali previste — rende visibili i buchi di copertura già all'indice" },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "outlined", "drafting", "draft_ready", "in_review", "revised", "images_pending", "complete", "failed"],
+            "description": "Stato pipeline del capitolo (rispecchia la state machine)"
+          },
+          "synopsis": {
+            "type": ["string", "null"],
+            "description": "100-200 parole, generata automaticamente come ultimo passo della stesura del capitolo. È ciò che i capitoli successivi 'sanno' di questo capitolo."
+          },
+          "word_count": { "type": ["integer", "null"] }
+        }
+      }
+    },
+
+    "continuity": {
+      "type": "object",
+      "description": "Registro di continuità: ciò che tiene il filo del discorso tra capitoli generati in chiamate separate",
+      "properties": {
+        "terminology": {
+          "type": "array",
+          "description": "Termini chiave introdotti e dove: evita ri-definizioni e derive terminologiche",
+          "items": {
+            "type": "object",
+            "required": ["term", "introduced_in"],
+            "properties": {
+              "term": { "type": "string" },
+              "definition": { "type": "string" },
+              "introduced_in": { "type": "integer", "description": "chapter_id" }
+            }
+          }
+        },
+        "concepts_covered": {
+          "type": "array",
+          "description": "Concetti già spiegati: il capitolo N può richiamarli senza rispiegarli",
+          "items": {
+            "type": "object",
+            "properties": {
+              "concept": { "type": "string" },
+              "chapter_id": { "type": "integer" }
+            }
+          }
+        },
+        "promises": {
+          "type": "array",
+          "description": "Promesse fatte al lettore ('come vedremo nel capitolo 8...'). La revisione finale verifica che siano tutte mantenute.",
+          "items": {
+            "type": "object",
+            "required": ["text", "made_in", "target_chapter", "fulfilled"],
+            "properties": {
+              "text": { "type": "string" },
+              "made_in": { "type": "integer" },
+              "target_chapter": { "type": ["integer", "null"] },
+              "fulfilled": { "type": "boolean" }
+            }
+          }
+        },
+        "style_decisions": {
+          "type": "array",
+          "description": "Decisioni stilistiche emerse in corsa non coperte dalle skills (es. 'i dati numerici sempre arrotondati al migliaio')",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "glossary": {
+      "type": "array",
+      "description": "Solo progetti di traduzione. Estratto dal dossier sorgente PRIMA di tradurre i capitoli, approvato al checkpoint, passato a ogni job di traduzione. È ciò che garantisce coerenza terminologica dal capitolo 1 al 20.",
+      "items": {
+        "type": "object",
+        "required": ["source_term", "target_term"],
+        "properties": {
+          "source_term": { "type": "string" },
+          "target_term": { "type": "string" },
+          "note": { "type": "string", "description": "Es. 'non tradurre, è un realia'; 'maiuscolo solo alla prima occorrenza'" }
+        }
+      }
+    }
+  }
+}
