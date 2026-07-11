@@ -79,7 +79,15 @@ ottimizzato di produzione non le referenzia.
       stati translation (glossario approvato → traduzione sequenziale →
       review); REST: derive, glossary edit/approve; budget cap anche sui
       derivati
-- [ ] 8. Admin UI rifinita
+- [x] **8. Admin UI (v1)** — menu Ghostwriter: Progetti (elenco, creazione
+      guidata con config conforme allo schema, dettaglio con azioni di
+      pipeline contestuali allo stato, indice editabile in outline_proposed,
+      glossario editabile per le traduzioni, capitoli con retry, export con
+      download, costi con barra budget, log recenti), Temi (registry +
+      import zip), Skills (registry + import), Impostazioni (stato chiavi
+      wp-config mascherate, diagnostica coda). Letture server-side,
+      scritture SOLO via REST con nonce. L'editor puntuale dei blocchi
+      (riscrittura/versioni dalla UI) arriva con la rifinitura
 
 ## Deviazioni dalla spec
 

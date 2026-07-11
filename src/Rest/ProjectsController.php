@@ -136,6 +136,16 @@ final class ProjectsController {
 
 		register_rest_route(
 			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/advance',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'advance' ),
+				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
 			'/projects/(?P<id>\d+)/budget/resume',
 			array(
 				'methods'             => 'POST',
@@ -353,6 +363,31 @@ final class ProjectsController {
 			return new WP_Error( 'gw_not_translation', 'Il glossario esiste solo sui progetti di traduzione.', array( 'status' => 409 ) );
 		}
 		return $this->transition_endpoint( $project_id, 'glossary_approved' );
+	}
+
+	/**
+	 * Avanzamento manuale dei checkpoint di revisione/copertina: applica il
+	 * primo evento ammesso tra quelli approvabili dall'admin. (La pipeline
+	 * copertina reale arriverà con la fase 6: fino ad allora questo sblocca
+	 * il percorso verso l'export.)
+	 */
+	public function advance( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$type  = $this->entity_type( $project_id );
+		$state = $this->states->state_of( $project_id, $type );
+
+		foreach ( array( 'review_completed', 'cover_approved' ) as $event ) {
+			if ( StateMachine::can( $type, $state, $event ) ) {
+				$new_state = $this->states->transition( $project_id, $type, $event, array( 'via' => 'rest_advance' ) );
+				return new WP_REST_Response( array( 'state' => $new_state ) );
+			}
+		}
+
+		return new WP_Error( 'gw_invalid_state', "Nessun avanzamento manuale ammesso dallo stato {$state}.", array( 'status' => 409 ) );
 	}
 
 	public function resume_budget( WP_REST_Request $request ): WP_REST_Response|WP_Error {
