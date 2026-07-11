@@ -137,7 +137,7 @@
       "type": "object",
       "required": ["provider", "model"],
       "properties": {
-        "provider": { "type": "string", "enum": ["anthropic", "openai"] },
+        "provider": { "type": "string", "enum": ["anthropic", "openai", "mock"], "description": "mock: provider finto per sviluppo/test della pipeline (nessuna rete)" },
         "model": { "type": "string" },
         "image_provider": { "type": "string" },
         "image_model": { "type": "string" },

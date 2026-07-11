@@ -44,8 +44,18 @@ final class PipelineRouter {
 			return;
 		}
 		if ( StateMachine::TYPE_CHAPTER === $entity_type ) {
+			// Budget cap (§4): progetto in paused_budget → accodamento sospeso.
+			// Alla ripresa (budget_resumed) la pipeline riparte perché ogni
+			// job è idempotente e rilancia dallo stato persistito.
+			if ( $this->is_paused( $this->chapters->get_project_id( $post_id ) ) ) {
+				return;
+			}
 			$this->on_chapter_changed( $post_id, $to );
 		}
+	}
+
+	private function is_paused( int $project_id ): bool {
+		return 'paused_budget' === $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
 	}
 
 	public function on_rewrite_requested( int $chapter_id, string $block_id, string $feedback, int $user_id, bool $refresh_synopsis ): void {

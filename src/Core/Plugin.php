@@ -3,8 +3,14 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Core;
 
-use Ghostwriter\Ai\MockProvider;
+use Ghostwriter\Ai\ContextComposer;
+use Ghostwriter\Ai\NullRagService;
+use Ghostwriter\Ai\PhaseSchemas;
 use Ghostwriter\Ai\ProviderInterface;
+use Ghostwriter\Ai\ProviderRouter;
+use Ghostwriter\Ai\RagServiceInterface;
+use Ghostwriter\Ai\SkillsManager;
+use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\Dossier;
 use Ghostwriter\Domain\SourceRegistry;
@@ -88,12 +94,29 @@ final class Plugin {
 				$c->get( ChapterRepository::class ),
 				$c->get( SourceRegistry::class )
 			),
-			// Provider AI: mock finché l'agent layer reale non arriva (fase 4).
-			// Sostituibile via filtro per sviluppo/test di integrazione.
-			ProviderInterface::class    => static function (): object {
-				$provider = apply_filters( 'gw_ai_provider', null );
-				return $provider instanceof ProviderInterface ? $provider : new MockProvider();
+			// Agent layer (fase 4): il router sceglie il provider per progetto
+			// dalla config (anthropic|openai|mock); chiavi API da wp-config.php.
+			PhaseSchemas::class         => static fn(): object => new PhaseSchemas( GHOSTWRITER_PLUGIN_DIR . 'schemas' ),
+			SkillsManager::class        => static function (): object {
+				$uploads = wp_upload_dir();
+				return new SkillsManager( trailingslashit( $uploads['basedir'] ) . 'ghostwriter/skills' );
 			},
+			RagServiceInterface::class  => static fn(): object => new NullRagService(),
+			ContextComposer::class      => static fn( Plugin $c ): object => new ContextComposer(
+				$c->get( SkillsManager::class ),
+				$c->get( ProjectRepository::class ),
+				$c->get( RagServiceInterface::class )
+			),
+			ProviderInterface::class    => static fn( Plugin $c ): object => new ProviderRouter(
+				$c->get( ProjectRepository::class ),
+				$c->get( ContextComposer::class ),
+				$c->get( PhaseSchemas::class )
+			),
+			UsageMeter::class           => static fn( Plugin $c ): object => new UsageMeter(
+				$c->get( UsageRepository::class ),
+				$c->get( ProjectRepository::class ),
+				$c->get( StateMachine::class )
+			),
 			Dispatcher::class           => static fn( Plugin $c ): object => new Dispatcher(
 				static fn( string $job_class ): object => $c->make_job( $job_class ),
 				$c->get( LogRepository::class )
@@ -194,7 +217,7 @@ final class Plugin {
 				$this->get( ProjectRepository::class ),
 				$this->get( Dossier::class ),
 				$this->get( StateMachine::class ),
-				$this->get( UsageRepository::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
 			MaterializeChaptersJob::class => new MaterializeChaptersJob(
@@ -211,7 +234,7 @@ final class Plugin {
 				$this->get( Dossier::class ),
 				$this->get( StateMachine::class ),
 				$this->get( SchemaValidator::class ),
-				$this->get( UsageRepository::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
 			SynopsisJob::class           => new SynopsisJob(
@@ -220,7 +243,7 @@ final class Plugin {
 				$this->get( ChapterRepository::class ),
 				$this->get( Dossier::class ),
 				$this->get( StateMachine::class ),
-				$this->get( UsageRepository::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
 			ReviewChapterJob::class      => new ReviewChapterJob(
@@ -229,7 +252,7 @@ final class Plugin {
 				$this->get( ChapterRepository::class ),
 				$this->get( StateMachine::class ),
 				$this->get( SchemaValidator::class ),
-				$this->get( UsageRepository::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
 			RewriteBlockJob::class       => new RewriteBlockJob(
@@ -238,7 +261,7 @@ final class Plugin {
 				$this->get( ChapterRepository::class ),
 				$this->get( BlockRevisionService::class ),
 				$this->get( SchemaValidator::class ),
-				$this->get( UsageRepository::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class ),
 				fn( string $class, array $args ) => $this->get( Dispatcher::class )->dispatch( $class, $args )
 			),
