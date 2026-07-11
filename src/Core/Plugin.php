@@ -21,6 +21,9 @@ use Ghostwriter\Domain\Dossier;
 use Ghostwriter\Domain\SourceRegistry;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
+use Ghostwriter\Queue\Jobs\CoverArtworkJob;
+use Ghostwriter\Queue\Jobs\CoverBriefJob;
+use Ghostwriter\Queue\Jobs\CoverComposeJob;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\ExportJob;
 use Ghostwriter\Queue\Jobs\GenerateImageJob;
@@ -41,11 +44,13 @@ use Ghostwriter\Rest\RegistryController;
 use Ghostwriter\Rendering\BookAssembler;
 use Ghostwriter\Rendering\EpubExporter;
 use Ghostwriter\Rendering\PdfExporter;
+use Ghostwriter\Rendering\Preflight;
 use Ghostwriter\Rendering\ThemeCompiler\EpubCssCompiler;
 use Ghostwriter\Rendering\ThemeCompiler\MpdfCssCompiler;
 use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
+use Ghostwriter\Media\CoverComposer;
 use Ghostwriter\Media\ImageService;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Repository\RagChunkRepository;
@@ -124,6 +129,8 @@ final class Plugin {
 			RagServiceInterface::class  => static fn( Plugin $c ): object => $c->get( LocalRagService::class ),
 			TextExtractor::class        => static fn(): object => new TextExtractor(),
 			ImageService::class         => static fn(): object => new ImageService(),
+			CoverComposer::class        => static fn(): object => new CoverComposer(),
+			Preflight::class            => static fn( Plugin $c ): object => new Preflight( $c->get( SchemaValidator::class ) ),
 			ContextComposer::class      => static fn( Plugin $c ): object => new ContextComposer(
 				$c->get( SkillsManager::class ),
 				$c->get( ProjectRepository::class ),
@@ -155,13 +162,16 @@ final class Plugin {
 			),
 			ProjectsController::class   => static fn( Plugin $c ): object => new ProjectsController(
 				$c->get( ProjectRepository::class ),
+				$c->get( ChapterRepository::class ),
 				$c->get( Dossier::class ),
 				$c->get( SourceRegistry::class ),
 				$c->get( StateMachine::class ),
 				$c->get( Dispatcher::class ),
 				$c->get( UsageMeter::class ),
 				$c->get( DerivedProjectFactory::class ),
-				$c->get( GlossaryService::class )
+				$c->get( GlossaryService::class ),
+				$c->get( ThemeRegistry::class ),
+				$c->get( Preflight::class )
 			),
 			ProjectsPage::class         => static fn( Plugin $c ): object => new ProjectsPage(
 				$c->get( ProjectRepository::class ),
@@ -290,6 +300,9 @@ final class Plugin {
 		IndexChapterJob::class,
 		ProposeGlossaryJob::class,
 		TranslateChapterJob::class,
+		CoverBriefJob::class,
+		CoverArtworkJob::class,
+		CoverComposeJob::class,
 		ExportJob::class,
 	);
 
@@ -393,10 +406,34 @@ final class Plugin {
 				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
+			CoverBriefJob::class         => new CoverBriefJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
+			),
+			CoverArtworkJob::class       => new CoverArtworkJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ImageService::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
+			),
+			CoverComposeJob::class       => new CoverComposeJob(
+				$this->get( ProjectRepository::class ),
+				$this->get( CoverComposer::class ),
+				$this->get( ImageService::class ),
+				$this->get( StateMachine::class ),
+				$this->get( LogRepository::class )
+			),
 			ExportJob::class             => new ExportJob(
 				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
 				$this->get( BookAssembler::class ),
 				$this->get( ThemeRegistry::class ),
+				$this->get( Preflight::class ),
 				$this->get( PdfExporter::class ),
 				$this->get( EpubExporter::class ),
 				$this->get( StateMachine::class ),

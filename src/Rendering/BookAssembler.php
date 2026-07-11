@@ -70,7 +70,8 @@ final class BookAssembler {
 			images: $images,
 			bibliography: $this->sources->bibliography( $project_id ),
 			year: (string) gmdate( 'Y' ),
-			identifier: $this->book_identifier( $project_id )
+			identifier: $this->book_identifier( $project_id ),
+			cover_path: $this->cover_path( $config )
 		);
 	}
 
@@ -128,6 +129,20 @@ final class BookAssembler {
 				$this->collect_images( $block['props']['blocks'], $images );
 			}
 		}
+	}
+
+	/**
+	 * Path locale della copertina composta (se la pipeline copertina è arrivata lì).
+	 *
+	 * @param array<string, mixed> $config Config progetto.
+	 */
+	private function cover_path( array $config ): ?string {
+		$attachment_id = (int) ( $config['cover']['composed_attachment_id'] ?? 0 );
+		if ( $attachment_id <= 0 ) {
+			return null;
+		}
+		$path = get_attached_file( $attachment_id );
+		return is_string( $path ) && file_exists( $path ) ? $path : null;
 	}
 
 	/**

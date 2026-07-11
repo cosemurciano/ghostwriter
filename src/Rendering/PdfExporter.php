@@ -143,6 +143,13 @@ final class PdfExporter {
 
 		$html = $this->page_footers( $page );
 
+		// --- Copertina composta: piena pagina, prima di tutto ---
+		if ( null !== $book->cover_path && file_exists( $book->cover_path ) ) {
+			$html .= '<div style="position: absolute; left: 0; top: 0; width: ' . $book->trim_width_mm . 'mm; height: ' . $book->trim_height_mm . 'mm;">'
+				. '<img src="' . htmlspecialchars( $book->cover_path, ENT_QUOTES, 'UTF-8' ) . '" style="width: ' . $book->trim_width_mm . 'mm; height: ' . $book->trim_height_mm . 'mm;" />'
+				. '</div><pagebreak />';
+		}
+
 		// --- Front matter (prima del TOC, senza testatine) ---
 		foreach ( array( 'half_title', 'title_page', 'colophon' ) as $i => $key ) {
 			$fragment = $theme->page_fragment( $key );

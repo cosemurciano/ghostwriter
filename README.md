@@ -68,7 +68,17 @@ ottimizzato di produzione non le referenzia.
       REST API ghostwriter/v1 (progetti, fonti, outline propose/edit/approve,
       budget resume, capitoli, riscrittura/versioni/ripristino blocchi,
       export con download autenticato, temi, skills)
-- [ ] 6. Copertina e preflight/export end-to-end
+- [x] **6. Copertina e preflight** — pipeline copertina (CoverBriefJob: brief
+      creativo AI dal dossier, modificabile; CoverArtworkJob: artwork SENZA
+      testo alla risoluzione del formato con abbondanza se print_ready, o
+      upload; CoverComposeJob: tipografia locale GD con font DejaVu sopra
+      l'artwork; approvazione umana → il progetto avanza); copertina nel PDF
+      (piena pagina) e nell'ePub (cover.xhtml + properties cover-image);
+      Preflight §8 completo (formato↔tema, copertura blocchi, figure
+      risolte + risoluzione stampa, promesse mantenute, note referenziate,
+      provenienza fonti nel registry, attribuzioni, font embeddabili,
+      schema di ogni capitolo) che blocca l'export sugli errori (override
+      con force) e report on-demand in UI
 - [x] **7. Traduzioni** — DerivedProjectFactory (nuovo gw_project con
       derived_from e lingua target, gerarchia capitoli clonata 1:1 con
       mapping _gw_source_chapter_id, dossier proprio); GlossaryService
@@ -86,8 +96,10 @@ ottimizzato di produzione non le referenzia.
       download, costi con barra budget, log recenti), Temi (registry +
       import zip), Skills (registry + import), Impostazioni (stato chiavi
       wp-config mascherate, diagnostica coda). Letture server-side,
-      scritture SOLO via REST con nonce. L'editor puntuale dei blocchi
-      (riscrittura/versioni dalla UI) arriva con la rifinitura
+      scritture SOLO via REST con nonce. Allineata a tutte le funzionalità:
+      fonti (registrazione + stato ingest), copertina (brief/anteprime/
+      approva/rigenera), preflight nell'export, editor blocchi per capitolo
+      (riscrittura con feedback, cronologia versioni, ripristino)
 
 ## Deviazioni dalla spec
 

@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace Ghostwriter\Queue;
 
 use Ghostwriter\Domain\StateMachine;
+use Ghostwriter\Queue\Jobs\CoverArtworkJob;
+use Ghostwriter\Queue\Jobs\CoverBriefJob;
+use Ghostwriter\Queue\Jobs\CoverComposeJob;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\GenerateImageJob;
 use Ghostwriter\Queue\Jobs\IndexChapterJob;
@@ -48,6 +51,10 @@ final class PipelineRouter {
 		}
 		if ( StateMachine::TYPE_TRANSLATION === $entity_type ) {
 			$this->on_translation_changed( $post_id, $to );
+			return;
+		}
+		if ( StateMachine::TYPE_COVER === $entity_type ) {
+			$this->on_cover_changed( $post_id, $to );
 			return;
 		}
 		if ( StateMachine::TYPE_CHAPTER === $entity_type ) {
@@ -137,6 +144,34 @@ final class PipelineRouter {
 
 			case 'generating':
 				$this->dispatch_next_chapter( $project_id );
+				break;
+
+			case 'cover_pending':
+				// Il progetto entra nella fase copertina: parte il brief.
+				$this->dispatcher->dispatch( CoverBriefJob::class, array( 'project_id' => $project_id ) );
+				break;
+		}
+	}
+
+	/**
+	 * Pipeline copertina: brief → artwork → composizione locale →
+	 * approvazione umana; l'approvazione fa avanzare il progetto.
+	 */
+	private function on_cover_changed( int $project_id, string $to ): void {
+		switch ( $to ) {
+			case 'brief_ready':
+				$this->dispatcher->dispatch( CoverArtworkJob::class, array( 'project_id' => $project_id ) );
+				break;
+
+			case 'artwork_ready':
+				$this->dispatcher->dispatch( CoverComposeJob::class, array( 'project_id' => $project_id ) );
+				break;
+
+			case 'approved':
+				$state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
+				if ( StateMachine::can( StateMachine::TYPE_PROJECT, $state, 'cover_approved' ) ) {
+					$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'cover_approved', array( 'router' => 'cover_approved' ) );
+				}
 				break;
 		}
 	}

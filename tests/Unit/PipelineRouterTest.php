@@ -7,6 +7,9 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
+use Ghostwriter\Queue\Jobs\CoverArtworkJob;
+use Ghostwriter\Queue\Jobs\CoverBriefJob;
+use Ghostwriter\Queue\Jobs\CoverComposeJob;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\GenerateImageJob;
 use Ghostwriter\Queue\Jobs\IndexChapterJob;
@@ -124,7 +127,7 @@ final class PipelineRouterTest extends TestCase {
 			},
 			static fn(): bool => false
 		);
-		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class, GenerateImageJob::class, IndexChapterJob::class, TranslateChapterJob::class ) as $job ) {
+		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class, GenerateImageJob::class, IndexChapterJob::class, TranslateChapterJob::class, CoverBriefJob::class, CoverArtworkJob::class, CoverComposeJob::class ) as $job ) {
 			$dispatcher->register_job( $job );
 		}
 
@@ -263,6 +266,25 @@ final class PipelineRouterTest extends TestCase {
 
 		self::assertSame( array(), $this->hooks() );
 		self::assertSame( 'review', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
+	}
+
+	public function test_cover_pipeline_routing(): void {
+		// Il progetto entra in cover_pending → parte il brief.
+		$this->router->on_state_changed( self::PROJECT, 'project', 'review', 'cover_pending', 'review_completed' );
+		self::assertSame( array( 'gw_job_cover_brief' ), $this->hooks() );
+
+		// brief_ready → artwork; artwork_ready → composizione.
+		$this->router->on_state_changed( self::PROJECT, 'cover', 'pending', 'brief_ready', 'brief_ready' );
+		$this->router->on_state_changed( self::PROJECT, 'cover', 'brief_ready', 'artwork_ready', 'artwork_ready' );
+		self::assertSame( array( 'gw_job_cover_brief', 'gw_job_cover_artwork', 'gw_job_cover_compose' ), $this->hooks() );
+	}
+
+	public function test_cover_approval_advances_project(): void {
+		$this->meta[ self::PROJECT ][ StateMachine::META_STATE ] = 'cover_pending';
+
+		$this->router->on_state_changed( self::PROJECT, 'cover', 'composed', 'approved', 'approved' );
+
+		self::assertSame( 'ready_to_export', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
 	}
 
 	public function test_rewrite_request_dispatches_rewrite_job_with_expected_version(): void {

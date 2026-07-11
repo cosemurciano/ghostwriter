@@ -31,13 +31,16 @@ final class ProjectsController {
 
 	public function __construct(
 		private ProjectRepository $projects,
+		private \Ghostwriter\Repository\ChapterRepository $chapters,
 		private Dossier $dossier,
 		private SourceRegistry $sources,
 		private StateMachine $states,
 		private Dispatcher $dispatcher,
 		private UsageMeter $meter,
 		private DerivedProjectFactory $derived,
-		private GlossaryService $glossary
+		private GlossaryService $glossary,
+		private \Ghostwriter\Rendering\ThemeRegistry $themes,
+		private \Ghostwriter\Rendering\Preflight $preflight_service
 	) {
 	}
 
@@ -130,6 +133,46 @@ final class ProjectsController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'approve_glossary' ),
+				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/preflight',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'preflight' ),
+				'permission_callback' => static fn(): bool => current_user_can( Capabilities::EXPORT ),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/cover',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'update_cover' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/cover/regenerate',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'regenerate_cover' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/cover/approve',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'approve_cover' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -366,6 +409,130 @@ final class ProjectsController {
 	}
 
 	/**
+	 * Preflight on-demand per la UI (theme=id@versione, target=pdf|epub).
+	 */
+	public function preflight( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$theme_key = (string) $request->get_param( 'theme' );
+		$target    = (string) $request->get_param( 'target' ) ?: 'pdf';
+		$pair      = explode( '@', $theme_key );
+
+		$theme = $this->themes->get( $pair[0] ?? '', $pair[1] ?? null );
+		if ( null === $theme ) {
+			return new WP_Error( 'gw_not_found', 'Tema non trovato.', array( 'status' => 404 ) );
+		}
+
+		$contents = array();
+		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+			$content = $this->chapters->get_content( $chapter_id );
+			if ( null !== $content ) {
+				$contents[ $chapter_id ] = $content;
+			}
+		}
+
+		return new WP_REST_Response(
+			$this->preflight_service->run(
+				$contents,
+				$this->projects->get_config( $project_id ),
+				$this->projects->get_dossier( $project_id ) ?? array(),
+				$theme,
+				$target
+			)
+		);
+	}
+
+	/**
+	 * Aggiorna il pacchetto copertina (brief, modalità, artwork caricato)
+	 * prima della composizione.
+	 */
+	public function update_cover( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$cover_state = $this->states->state_of( $project_id, StateMachine::TYPE_COVER );
+		if ( in_array( $cover_state, array( 'composed', 'approved' ), true ) ) {
+			return new WP_Error( 'gw_invalid_state', 'Copertina già composta: usare "rigenera" per ripartire dal brief.', array( 'status' => 409 ) );
+		}
+
+		$config = $this->projects->get_config( $project_id );
+		$cover  = (array) ( $config['cover'] ?? array() );
+
+		if ( null !== $request->get_param( 'creative_brief' ) ) {
+			$cover['creative_brief'] = sanitize_textarea_field( (string) $request->get_param( 'creative_brief' ) );
+		}
+		if ( null !== $request->get_param( 'mode' ) ) {
+			$mode = (string) $request->get_param( 'mode' );
+			if ( ! in_array( $mode, array( 'upload', 'ai_generated' ), true ) ) {
+				return new WP_Error( 'gw_invalid_params', 'mode: upload|ai_generated.', array( 'status' => 400 ) );
+			}
+			$cover['mode'] = $mode;
+		}
+		if ( null !== $request->get_param( 'front_artwork_attachment_id' ) ) {
+			$cover['front_artwork_attachment_id'] = (int) $request->get_param( 'front_artwork_attachment_id' ) ?: null;
+		}
+
+		$config['cover'] = $cover;
+		try {
+			$this->projects->save_config( $project_id, $config );
+		} catch ( SchemaValidationException $e ) {
+			return new WP_Error( 'gw_invalid_cover', $e->getMessage(), array( 'status' => 422, 'errors' => $e->get_errors() ) );
+		}
+
+		return new WP_REST_Response( array( 'cover' => $config['cover'] ) );
+	}
+
+	/**
+	 * Rigenerazione copertina: da composed si torna al brief (rejected);
+	 * da pending (ri)parte il brief job.
+	 */
+	public function regenerate_cover( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$cover_state = $this->states->state_of( $project_id, StateMachine::TYPE_COVER );
+
+		if ( 'composed' === $cover_state ) {
+			$new_state = $this->states->transition( $project_id, StateMachine::TYPE_COVER, 'rejected', array( 'via' => 'rest' ) );
+			return new WP_REST_Response( array( 'cover_state' => $new_state ) );
+		}
+		if ( 'artwork_ready' === $cover_state ) {
+			$new_state = $this->states->transition( $project_id, StateMachine::TYPE_COVER, 'artwork_ready', array( 'via' => 'rest_regenerate' ) );
+			return new WP_REST_Response( array( 'cover_state' => $new_state ) );
+		}
+		if ( 'pending' === $cover_state ) {
+			$this->dispatcher->dispatch( \Ghostwriter\Queue\Jobs\CoverBriefJob::class, array( 'project_id' => $project_id ) );
+			return new WP_REST_Response( array( 'queued' => true ), 202 );
+		}
+
+		return new WP_Error( 'gw_invalid_state', "Rigenerazione non ammessa dallo stato copertina {$cover_state}.", array( 'status' => 409 ) );
+	}
+
+	public function approve_cover( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$cover_state = $this->states->state_of( $project_id, StateMachine::TYPE_COVER );
+		if ( ! StateMachine::can( StateMachine::TYPE_COVER, $cover_state, 'approved' ) ) {
+			return new WP_Error( 'gw_invalid_state', "Approvazione non ammessa dallo stato copertina {$cover_state}.", array( 'status' => 409 ) );
+		}
+
+		// Il router propaga: cover approved → progetto cover_approved.
+		$new_state = $this->states->transition( $project_id, StateMachine::TYPE_COVER, 'approved', array( 'via' => 'rest' ) );
+
+		return new WP_REST_Response( array( 'cover_state' => $new_state ) );
+	}
+
+	/**
 	 * Avanzamento manuale dei checkpoint di revisione/copertina: applica il
 	 * primo evento ammesso tra quelli approvabili dall'admin. (La pipeline
 	 * copertina reale arriverà con la fase 6: fino ad allora questo sblocca
@@ -523,13 +690,14 @@ final class ProjectsController {
 		$type = $this->entity_type( $project_id );
 
 		return array(
-			'id'      => $project_id,
-			'type'    => $type,
-			'title'   => get_the_title( $project_id ),
-			'state'   => $this->states->state_of( $project_id, $type ),
-			'config'  => $this->projects->get_config( $project_id ),
-			'dossier' => $this->projects->get_dossier( $project_id ),
-			'usage'   => $this->meter->report( $project_id ),
+			'id'          => $project_id,
+			'type'        => $type,
+			'title'       => get_the_title( $project_id ),
+			'state'       => $this->states->state_of( $project_id, $type ),
+			'cover_state' => $this->states->state_of( $project_id, StateMachine::TYPE_COVER ),
+			'config'      => $this->projects->get_config( $project_id ),
+			'dossier'     => $this->projects->get_dossier( $project_id ),
+			'usage'       => $this->meter->report( $project_id ),
 		);
 	}
 
