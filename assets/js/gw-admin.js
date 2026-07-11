@@ -171,6 +171,23 @@
 			return { language: data.language };
 		},
 
+		// Nuova fonte: source_id derivato dal titolo, URL o path in base al tipo.
+		addSource: function ( data ) {
+			var source = {
+				source_id: 'src-' + data.title.toLowerCase().replace( /[^a-z0-9]+/g, '-' ).replace( /^-+|-+$/g, '' ).slice( 0, 40 ),
+				type: 'open_data' === data.type ? 'open_data' : data.type,
+				title: data.title,
+				license: data.license,
+				attribution_required: !! data.attribution_required,
+			};
+			if ( 'pdf' === data.type ) {
+				source.file_path = data.location;
+			} else {
+				source.url = data.location;
+			}
+			return { source: source };
+		},
+
 		exportBook: function ( data ) {
 			var pair = data.theme.split( '@' );
 			return { theme_id: pair[ 0 ], theme_version: pair[ 1 ] || null, target: data.target };
@@ -226,6 +243,125 @@
 			.catch( function ( error ) {
 				notify( cfg.i18n.error + ': ' + error.message, true );
 			} );
+	} );
+
+	// Preflight on-demand: report sotto il form export.
+	document.addEventListener( 'click', function ( event ) {
+		var el = event.target.closest( '[data-gw-preflight]' );
+		if ( ! el ) {
+			return;
+		}
+		event.preventDefault();
+		var form = el.closest( 'form' );
+		var theme = form.querySelector( '[name="theme"]' ).value;
+		var target = form.querySelector( '[name="target"]' ).value;
+		var box = form.parentElement.querySelector( '.gw-preflight-report' );
+
+		el.disabled = true;
+		api( '/projects/' + el.getAttribute( 'data-gw-preflight' ) + '/preflight?theme=' + encodeURIComponent( theme ) + '&target=' + target )
+			.then( function ( report ) {
+				el.disabled = false;
+				var html = '';
+				( report.errors || [] ).forEach( function ( message ) {
+					html += '<p style="color:#d63638">✗ ' + escapeHtml( message ) + '</p>';
+				} );
+				( report.warnings || [] ).forEach( function ( message ) {
+					html += '<p style="color:#996800">⚠ ' + escapeHtml( message ) + '</p>';
+				} );
+				if ( '' === html ) {
+					html = '<p style="color:#00a32a">✓ Preflight superato: pronto per l\'export.</p>';
+				}
+				box.innerHTML = html;
+				box.style.display = 'block';
+			} )
+			.catch( function ( error ) {
+				el.disabled = false;
+				notify( cfg.i18n.error + ': ' + error.message, true );
+			} );
+	} );
+
+	// Blocchi di un capitolo: elenco espandibile con riscrittura e versioni.
+	function escapeHtml( text ) {
+		var div = document.createElement( 'div' );
+		div.textContent = String( text );
+		return div.innerHTML;
+	}
+
+	function blockExcerpt( block ) {
+		var props = block.props || {};
+		var text = props.text || props.title || props.caption || props.code || ( props.items ? props.items.join( ' · ' ) : '' ) || props.image_brief || '';
+		text = String( text );
+		return text.length > 140 ? text.slice( 0, 140 ) + '…' : text;
+	}
+
+	function renderBlocks( container, chapterId, content ) {
+		if ( ! content || ! content.blocks || ! content.blocks.length ) {
+			container.textContent = 'Nessun contenuto ancora generato.';
+			return;
+		}
+		var html = '<table class="widefat striped"><tbody>';
+		content.blocks.forEach( function ( block ) {
+			html += '<tr>'
+				+ '<td style="width:110px"><code>' + escapeHtml( block.type ) + '</code><br/><span class="gw-muted">v' + ( block.version || 1 ) + '</span></td>'
+				+ '<td>' + escapeHtml( blockExcerpt( block ) ) + '</td>'
+				+ '<td style="width:200px">'
+				+ '<button class="button button-small" data-gw-action="POST /chapters/' + chapterId + '/blocks/' + encodeURIComponent( block.id ) + '/rewrite" data-gw-prompt-feedback>Riscrivi</button> '
+				+ '<button class="button button-small" data-gw-block-versions="' + chapterId + '|' + escapeHtml( block.id ) + '">Versioni</button>'
+				+ '</td></tr>'
+				+ '<tr class="gw-versions-row" data-block="' + escapeHtml( block.id ) + '" style="display:none"><td colspan="3"><div class="gw-versions-target gw-muted">…</div></td></tr>';
+		} );
+		container.innerHTML = html + '</tbody></table>';
+	}
+
+	document.addEventListener( 'click', function ( event ) {
+		var toggle = event.target.closest( '[data-gw-chapter-blocks]' );
+		if ( toggle ) {
+			event.preventDefault();
+			var chapterId = toggle.getAttribute( 'data-gw-chapter-blocks' );
+			var row = document.querySelector( '.gw-blocks-row[data-chapter="' + chapterId + '"]' );
+			if ( 'none' !== row.style.display ) {
+				row.style.display = 'none';
+				return;
+			}
+			row.style.display = '';
+			api( '/chapters/' + chapterId ).then( function ( chapter ) {
+				renderBlocks( row.querySelector( '.gw-blocks-target' ), chapterId, chapter.content );
+			} ).catch( function ( error ) {
+				row.querySelector( '.gw-blocks-target' ).textContent = error.message;
+			} );
+			return;
+		}
+
+		var versions = event.target.closest( '[data-gw-block-versions]' );
+		if ( versions ) {
+			event.preventDefault();
+			var pair = versions.getAttribute( 'data-gw-block-versions' ).split( '|' );
+			var versionsRow = versions.closest( 'tr' ).nextElementSibling;
+			if ( 'none' !== versionsRow.style.display ) {
+				versionsRow.style.display = 'none';
+				return;
+			}
+			versionsRow.style.display = '';
+			var target = versionsRow.querySelector( '.gw-versions-target' );
+			api( '/chapters/' + pair[ 0 ] + '/blocks/' + encodeURIComponent( pair[ 1 ] ) + '/versions' ).then( function ( data ) {
+				if ( ! data.versions || ! data.versions.length ) {
+					target.textContent = 'Nessuna versione precedente: il blocco non è mai stato riscritto.';
+					return;
+				}
+				var html = '<table class="widefat"><tbody>';
+				data.versions.forEach( function ( revision ) {
+					html += '<tr>'
+						+ '<td style="width:70px">v' + revision.version + '<br/><span class="gw-muted">' + escapeHtml( revision.origin || '' ) + '</span></td>'
+						+ '<td>' + escapeHtml( blockExcerpt( revision.block || {} ) )
+						+ ( revision.feedback ? '<br/><em class="gw-muted">Feedback: ' + escapeHtml( revision.feedback ) + '</em>' : '' ) + '</td>'
+						+ '<td style="width:110px"><button class="button button-small" data-gw-action="POST /chapters/' + pair[ 0 ] + '/blocks/' + encodeURIComponent( pair[ 1 ] ) + '/restore" data-gw-body=\'{"version":' + revision.version + '}\' data-gw-confirm>Ripristina</button></td>'
+						+ '</tr>';
+				} );
+				target.innerHTML = html + '</tbody></table>';
+			} ).catch( function ( error ) {
+				target.textContent = error.message;
+			} );
+		}
 	} );
 
 	// Righe dinamiche del glossario.

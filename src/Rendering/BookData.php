@@ -30,7 +30,8 @@ final class BookData {
 		public readonly string $isbn = '',
 		public readonly string $year = '',
 		public readonly string $edition = '',
-		public readonly ?string $identifier = null
+		public readonly ?string $identifier = null,
+		public readonly ?string $cover_path = null
 	) {
 	}
 

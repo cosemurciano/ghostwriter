@@ -96,6 +96,6 @@ final class MockProviderTest extends TestCase {
 
 	public function test_unknown_phase_throws(): void {
 		$this->expectException( \InvalidArgumentException::class );
-		$this->provider->complete( new AiRequest( 'cover', array(), 7 ) );
+		$this->provider->complete( new AiRequest( 'fase-inventata', array(), 7 ) );
 	}
 }

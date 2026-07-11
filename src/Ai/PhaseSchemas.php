@@ -27,6 +27,7 @@ final class PhaseSchemas {
 			AiRequest::PHASE_REWRITE  => $this->block_schema(),
 			AiRequest::PHASE_TRANSLATION => $this->chapter_content_schema(),
 			AiRequest::PHASE_GLOSSARY => self::glossary_schema(),
+			AiRequest::PHASE_COVER    => self::cover_schema(),
 			default                   => throw new \InvalidArgumentException( "Fase senza schema: {$phase}" ),
 		};
 	}
@@ -56,6 +57,22 @@ final class PhaseSchemas {
 		return array(
 			'$ref'        => '#/definitions/block',
 			'definitions' => $full['definitions'] ?? array(),
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private static function cover_schema(): array {
+		return array(
+			'type'       => 'object',
+			'required'   => array( 'creative_brief' ),
+			'properties' => array(
+				'creative_brief' => array(
+					'type'        => 'string',
+					'description' => 'Brief creativo per l\'artwork di copertina: soggetto, stile, palette, atmosfera. SENZA testo nell\'immagine.',
+				),
+			),
 		);
 	}
 

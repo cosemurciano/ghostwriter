@@ -17,6 +17,9 @@ final class MockProvider implements ProviderInterface {
 			AiRequest::PHASE_REVIEW   => $this->review( $request ),
 			AiRequest::PHASE_REWRITE  => $this->rewrite( $request ),
 			AiRequest::PHASE_GLOSSARY => $this->glossary( $request ),
+			AiRequest::PHASE_COVER    => array(
+				'creative_brief' => 'Illustrazione (mock) evocativa del tema del libro, stile acquerello, palette terrosa, nessun testo.',
+			),
 			AiRequest::PHASE_TRANSLATION => $this->translation( $request ),
 			default                   => throw new \InvalidArgumentException( "Fase sconosciuta: {$request->phase}" ),
 		};

@@ -177,8 +177,10 @@ final class ProjectsPage {
 			$this->render_glossary_box( $project_id, $state, $dossier );
 		} else {
 			$this->render_outline_box( $project_id, $state, $dossier );
+			$this->render_sources_box( $project_id, $config );
 		}
 		$this->render_chapters_box( $project_id, $dossier );
+		$this->render_cover_box( $project_id, $config );
 		$this->render_export_box( $project_id, $config );
 		$this->render_usage_box( $project_id );
 		$this->render_log_box( $project_id );
@@ -226,7 +228,7 @@ final class ProjectsPage {
 					$button( __( 'Chiudi revisione', 'ghostwriter' ), "POST /projects/{$project_id}/advance" );
 					break;
 				case 'cover_pending':
-					$button( __( 'Approva copertina (fase copertina in arrivo)', 'ghostwriter' ), "POST /projects/{$project_id}/advance" );
+					echo '<span class="gw-muted">' . esc_html__( 'Fase copertina in corso: gestiscila dal box Copertina qui sotto.', 'ghostwriter' ) . '</span>';
 					break;
 				case 'paused_budget':
 					$button( __( 'Riprendi (budget)', 'ghostwriter' ), "POST /projects/{$project_id}/budget/resume" );
@@ -343,10 +345,101 @@ final class ProjectsPage {
 			echo '<tr><td><strong>' . esc_html( get_the_title( $chapter_id ) ) . '</strong></td>'
 				. '<td>' . $this->state_badge( $state ) . '</td>'
 				. '<td>' . ( ! empty( $words[ $chapter_id ] ) ? esc_html( number_format_i18n( (int) $words[ $chapter_id ] ) ) . ' ' . esc_html__( 'parole', 'ghostwriter' ) : '' ) . '</td>'
-				. '<td>' . ( 'failed' === $state ? '<button class="button" data-gw-action="POST /chapters/' . (int) $chapter_id . '/retry" data-gw-confirm>' . esc_html__( 'Riprova', 'ghostwriter' ) . '</button>' : '' ) . '</td>'
-				. '</tr>';
+				. '<td>'
+				. ( 'failed' === $state ? '<button class="button" data-gw-action="POST /chapters/' . (int) $chapter_id . '/retry" data-gw-confirm>' . esc_html__( 'Riprova', 'ghostwriter' ) . '</button> ' : '' )
+				. '<button class="button button-small" data-gw-chapter-blocks="' . (int) $chapter_id . '">' . esc_html__( 'Blocchi', 'ghostwriter' ) . '</button>'
+				. '</td>'
+				. '</tr>'
+				. '<tr class="gw-blocks-row" data-chapter="' . (int) $chapter_id . '" style="display:none"><td colspan="4"><div class="gw-blocks-target gw-muted">…</div></td></tr>';
 		}
 		echo '</tbody></table></div>';
+	}
+
+	/**
+	 * Fonti del progetto: registry con stato ingest + registrazione.
+	 *
+	 * @param array<string, mixed> $config Config progetto.
+	 */
+	private function render_sources_box( int $project_id, array $config ): void {
+		$registry = (array) ( $config['sources']['registry'] ?? array() );
+
+		echo '<div class="gw-box"><h2>' . esc_html__( 'Fonti', 'ghostwriter' ) . '</h2>';
+
+		if ( ! empty( $registry ) ) {
+			echo '<table class="widefat striped"><tbody>';
+			foreach ( $registry as $source ) {
+				echo '<tr><td><strong>' . esc_html( (string) ( $source['title'] ?? $source['source_id'] ?? '' ) ) . '</strong>'
+					. '<br/><span class="gw-muted">' . esc_html( (string) ( $source['type'] ?? '' ) . ' · ' . (string) ( $source['license'] ?? '' ) ) . '</span></td>'
+					. '<td>' . $this->state_badge( (string) ( $source['ingest_status'] ?? 'registrata' ) )
+					. ( ! empty( $source['chunk_count'] ) ? ' <span class="gw-muted">' . (int) $source['chunk_count'] . ' ' . esc_html__( 'frammenti', 'ghostwriter' ) . '</span>' : '' )
+					. '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		echo '<form data-gw-form="POST /projects/' . (int) $project_id . '/sources" data-gw-transform="addSource" style="margin-top:10px">'
+			. '<p><input type="text" name="title" placeholder="' . esc_attr__( 'Titolo della fonte', 'ghostwriter' ) . '" required class="regular-text" /></p>'
+			. '<p><select name="type"><option value="url">URL</option><option value="pdf">PDF (path sul server)</option><option value="open_data">open data (URL)</option></select> '
+			. '<input type="text" name="location" placeholder="https://… o /percorso/file.pdf" class="regular-text" required /></p>'
+			. '<p><select name="license"><option value="CC-BY-4.0">CC-BY-4.0</option><option value="CC0">CC0</option><option value="pubblico dominio">' . esc_html__( 'pubblico dominio', 'ghostwriter' ) . '</option><option value="proprietaria">' . esc_html__( 'proprietaria', 'ghostwriter' ) . '</option></select> '
+			. '<label><input type="checkbox" name="attribution_required" value="1" /> ' . esc_html__( 'attribuzione richiesta', 'ghostwriter' ) . '</label> '
+			. '<button class="button">' . esc_html__( 'Registra e ingerisci', 'ghostwriter' ) . '</button></p>'
+			. '</form></div>';
+	}
+
+	/**
+	 * Copertina: stato, brief, anteprime, azioni.
+	 *
+	 * @param array<string, mixed> $config Config progetto.
+	 */
+	private function render_cover_box( int $project_id, array $config ): void {
+		$cover_state = $this->states->state_of( $project_id, StateMachine::TYPE_COVER );
+		$cover       = (array) ( $config['cover'] ?? array() );
+
+		echo '<div class="gw-box"><h2>' . esc_html__( 'Copertina', 'ghostwriter' ) . ' ' . $this->state_badge( $cover_state ) . '</h2>';
+
+		// Brief creativo (editabile prima della composizione).
+		$editable_brief = in_array( $cover_state, array( 'pending', 'brief_ready', 'artwork_ready' ), true );
+		if ( $editable_brief ) {
+			echo '<form data-gw-form="PUT /projects/' . (int) $project_id . '/cover">'
+				. '<p><label>' . esc_html__( 'Brief creativo (l\'artwork è SEMPRE senza testo)', 'ghostwriter' ) . '<br/>'
+				. '<textarea name="creative_brief" rows="3" class="large-text">' . esc_textarea( (string) ( $cover['creative_brief'] ?? '' ) ) . '</textarea></label></p>'
+				. '<p><label>' . esc_html__( 'Modalità', 'ghostwriter' ) . ' <select name="mode">'
+				. '<option value="ai_generated"' . selected( ( $cover['mode'] ?? 'ai_generated' ), 'ai_generated', false ) . '>AI</option>'
+				. '<option value="upload"' . selected( ( $cover['mode'] ?? '' ), 'upload', false ) . '>' . esc_html__( 'artwork caricato', 'ghostwriter' ) . '</option>'
+				. '</select></label> '
+				. '<label>' . esc_html__( 'ID media artwork (per upload)', 'ghostwriter' ) . ' <input type="number" name="front_artwork_attachment_id" value="' . esc_attr( (string) ( $cover['front_artwork_attachment_id'] ?? '' ) ) . '" style="width:90px" /></label> '
+				. '<button class="button">' . esc_html__( 'Salva', 'ghostwriter' ) . '</button></p></form>';
+		} elseif ( ! empty( $cover['creative_brief'] ) ) {
+			echo '<p class="gw-muted">' . esc_html( (string) $cover['creative_brief'] ) . '</p>';
+		}
+
+		// Anteprime.
+		foreach ( array(
+			'front_artwork_attachment_id' => __( 'Artwork (senza testo)', 'ghostwriter' ),
+			'composed_attachment_id'      => __( 'Composizione', 'ghostwriter' ),
+		) as $key => $label ) {
+			if ( ! empty( $cover[ $key ] ) ) {
+				$thumbnail = wp_get_attachment_image( (int) $cover[ $key ], array( 150, 220 ) );
+				if ( $thumbnail ) {
+					echo '<div style="display:inline-block;margin:0 10px 10px 0;text-align:center"><div>' . $thumbnail . '</div><span class="gw-muted">' . esc_html( $label ) . '</span></div>';
+				}
+			}
+		}
+
+		// Azioni per stato.
+		echo '<p class="gw-actions">';
+		if ( 'pending' === $cover_state ) {
+			echo '<button class="button" data-gw-action="POST /projects/' . (int) $project_id . '/cover/regenerate">' . esc_html__( 'Avvia pipeline copertina', 'ghostwriter' ) . '</button>';
+		}
+		if ( 'composed' === $cover_state ) {
+			echo '<button class="button button-primary" data-gw-action="POST /projects/' . (int) $project_id . '/cover/approve" data-gw-confirm>' . esc_html__( 'Approva copertina', 'ghostwriter' ) . '</button> ';
+			echo '<button class="button" data-gw-action="POST /projects/' . (int) $project_id . '/cover/regenerate" data-gw-confirm>' . esc_html__( 'Rigenera (nuovo artwork)', 'ghostwriter' ) . '</button>';
+		}
+		if ( 'approved' === $cover_state ) {
+			echo '<span class="gw-muted">' . esc_html__( 'Copertina approvata: entra nel PDF e nell\'ePub.', 'ghostwriter' ) . '</span>';
+		}
+		echo '</p></div>';
 	}
 
 	/**
@@ -368,8 +461,10 @@ final class ProjectsPage {
 		}
 		echo '</select> ';
 		echo '<select name="target"><option value="pdf">PDF</option><option value="epub">ePub</option></select> ';
+		echo '<button type="button" class="button" data-gw-preflight="' . (int) $project_id . '">' . esc_html__( 'Preflight', 'ghostwriter' ) . '</button> ';
 		echo '<button class="button button-primary">' . esc_html__( 'Esporta', 'ghostwriter' ) . '</button>';
 		echo '</p></form>';
+		echo '<div class="gw-preflight-report" style="display:none"></div>';
 
 		$exports = get_post_meta( $project_id, ExportJob::META_EXPORTS, true );
 		$exports = is_array( $exports ) ? array_reverse( $exports ) : array();

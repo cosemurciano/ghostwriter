@@ -8,6 +8,7 @@ use Ghostwriter\Queue\JobInterface;
 use Ghostwriter\Rendering\BookAssembler;
 use Ghostwriter\Rendering\EpubExporter;
 use Ghostwriter\Rendering\PdfExporter;
+use Ghostwriter\Rendering\Preflight;
 use Ghostwriter\Rendering\Theme;
 use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\LogRepository;
@@ -24,8 +25,10 @@ final class ExportJob implements JobInterface {
 
 	public function __construct(
 		private ProjectRepository $projects,
+		private \Ghostwriter\Repository\ChapterRepository $chapters,
 		private BookAssembler $assembler,
 		private ThemeRegistry $themes,
+		private Preflight $preflight,
 		private PdfExporter $pdf,
 		private EpubExporter $epub,
 		private StateMachine $states,
@@ -53,7 +56,21 @@ final class ExportJob implements JobInterface {
 		}
 
 		$config = $this->projects->get_config( $project_id );
-		$this->assert_block_coverage( $theme, $config );
+
+		// Preflight (§8): gli errori bloccano l'export (override con force).
+		$contents = array();
+		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+			$content = $this->chapters->get_content( $chapter_id );
+			if ( null !== $content ) {
+				$contents[ $chapter_id ] = $content;
+			}
+		}
+		$report = $this->preflight->run( $contents, $config, $this->projects->get_dossier( $project_id ) ?? array(), $theme, $target );
+		update_post_meta( $project_id, '_gw_preflight', $report );
+
+		if ( ! empty( $report['errors'] ) && empty( $args['force'] ) ) {
+			throw new \RuntimeException( 'Preflight fallito: ' . implode( ' | ', array_slice( $report['errors'], 0, 5 ) ) );
+		}
 
 		$book = $this->assembler->assemble( $project_id );
 
@@ -91,24 +108,6 @@ final class ExportJob implements JobInterface {
 		}
 
 		$this->log->log( $project_id, null, LogRepository::LEVEL_INFO, 'export_completed', array( 'file' => $filename, 'target' => $target ) );
-	}
-
-	/**
-	 * Copertura blocchi: structural_profile.allowed_blocks ⊆ theme.supports_blocks,
-	 * validata PRIMA di generare (regola trasversale del contratto dati).
-	 *
-	 * @param array<string, mixed> $config Config progetto.
-	 */
-	private function assert_block_coverage( Theme $theme, array $config ): void {
-		$allowed   = array_map( 'strval', (array) ( $config['structural_profile']['allowed_blocks'] ?? array() ) );
-		$supported = $theme->supports_blocks();
-		$missing   = array_diff( $allowed, $supported );
-
-		if ( ! empty( $missing ) ) {
-			throw new \RuntimeException(
-				sprintf( 'Il tema %s non copre i blocchi del profilo strutturale: %s.', $theme->name(), implode( ', ', $missing ) )
-			);
-		}
 	}
 
 	public function on_failure( array $args, \Throwable $e ): void {

@@ -139,6 +139,7 @@ final class ContextComposer {
 			AiRequest::PHASE_REVIEW   => 'FASE REVISIONE: rivedi il capitolo nel suo formato intermedio. Correggi incoerenze col dossier, ripetizioni, transizioni deboli. Conserva id e type di ogni blocco; incrementa version SOLO dei blocchi effettivamente modificati.',
 			AiRequest::PHASE_REWRITE  => 'FASE RISCRITTURA: riscrivi il SOLO blocco indicato tenendo conto del feedback dell\'utente. Stesso id, stesso type. Usa i blocchi adiacenti solo per il raccordo. Restituisci esclusivamente il blocco riscritto.',
 			AiRequest::PHASE_GLOSSARY => 'FASE GLOSSARIO: dal materiale del progetto sorgente proponi il glossario di traduzione (source_term → target_term, con note dove servono: realia da non tradurre, maiuscole, falsi amici). Il glossario governa la coerenza terminologica dell\'intera traduzione.',
+			AiRequest::PHASE_COVER    => 'FASE COPERTINA: dal dossier del libro scrivi il brief creativo per l\'artwork di copertina: soggetto, stile visivo, palette, atmosfera. VINCOLO ASSOLUTO: l\'immagine non deve contenere ALCUN testo, titolo o lettering — la tipografia la compone il sistema.',
 			AiRequest::PHASE_TRANSLATION => 'FASE TRADUZIONE: traduci il capitolo sorgente blocco per blocco nella lingua target. VINCOLI: gli id dei blocchi restano IDENTICI (sono la chiave di mapping), i type non cambiano, il glossario approvato è vincolante, la struttura (note, fonti, figure con image_brief) si conserva; traduci anche meta.title e le caption. Riporta version = 1 su ogni blocco.',
 			default                   => '',
 		};

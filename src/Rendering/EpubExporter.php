@@ -40,6 +40,22 @@ final class EpubExporter {
 		$zip->addFromString( 'META-INF/container.xml', $this->container_xml() );
 		$zip->addFromString( 'OEBPS/styles/book.css', $this->compiler->compile( $theme ) );
 
+		// Copertina composta (se disponibile).
+		$has_cover = null !== $book->cover_path && file_exists( $book->cover_path );
+		if ( $has_cover ) {
+			$cover_ext = strtolower( pathinfo( $book->cover_path, PATHINFO_EXTENSION ) ?: 'png' );
+			$zip->addFile( $book->cover_path, 'OEBPS/images/cover.' . $cover_ext );
+			$zip->addFromString(
+				'OEBPS/cover.xhtml',
+				$this->xhtml_document(
+					$book->language,
+					self::esc( $book->title ),
+					'<section epub:type="cover" style="text-align:center;margin:0;padding:0">'
+					. '<img src="images/cover.' . $cover_ext . '" alt="' . self::esc( $book->title ) . '" style="max-width:100%"/></section>'
+				)
+			);
+		}
+
 		// Capitoli: le immagini usate vengono raccolte durante il rendering.
 		$used_images = array();
 		$chapters    = array();
@@ -210,6 +226,14 @@ final class EpubExporter {
 		$manifest = '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
 			. '<item id="css" href="styles/book.css" media-type="text/css"/>';
 		$spine    = '';
+
+		if ( null !== $book->cover_path && file_exists( $book->cover_path ) ) {
+			$cover_ext  = strtolower( pathinfo( $book->cover_path, PATHINFO_EXTENSION ) ?: 'png' );
+			$cover_mime = 'jpg' === $cover_ext || 'jpeg' === $cover_ext ? 'image/jpeg' : 'image/png';
+			$manifest  .= '<item id="cover-image" href="images/cover.' . $cover_ext . '" media-type="' . $cover_mime . '" properties="cover-image"/>'
+				. '<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>';
+			$spine     .= '<itemref idref="cover" linear="yes"/>';
+		}
 
 		foreach ( $chapters as $entry ) {
 			$manifest .= '<item id="' . $entry['id'] . '" href="' . self::esc( $entry['file'] ) . '" media-type="application/xhtml+xml"/>';
