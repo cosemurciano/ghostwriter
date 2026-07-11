@@ -33,7 +33,14 @@ vendor/bin/phpunit   # unit test
       apertura recto, tempDir esplicita, fontdata dal tema), EpubExporter
       (EPUB3 interno, spine per capitolo, nav annidata), BookAssembler
       (unico punto WP del rendering)
-- [ ] 3. Coda e pipeline (Action Scheduler, Dispatcher, job con provider mock)
+- [x] **3. Coda e pipeline** — Dispatcher su Action Scheduler (dedup
+      {job}:{project}:{chapter}, 3 tentativi con backoff 60/240s, on_failure →
+      stato failed), ProviderInterface + MockProvider (output sempre conformi
+      agli schemi), job: ProposeOutline, MaterializeChapters, DraftChapter
+      (retry mirato su errore di validazione), Synopsis, ReviewChapter,
+      RewriteBlock (versioning con feedback), Export; PipelineRouter su
+      gw_state_changed (generazione sequenziale, immagini saltate fino alla
+      fase 5)
 - [ ] 4. Agent layer (provider reali, ContextComposer, SkillsManager, RagService, UsageMeter)
 - [ ] 5. Pipeline complete (outline → capitoli → immagini → dossier)
 - [ ] 6. Copertina e preflight/export end-to-end

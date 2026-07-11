@@ -3,10 +3,21 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Core;
 
+use Ghostwriter\Ai\MockProvider;
+use Ghostwriter\Ai\ProviderInterface;
 use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\Dossier;
 use Ghostwriter\Domain\SourceRegistry;
 use Ghostwriter\Domain\StateMachine;
+use Ghostwriter\Queue\Dispatcher;
+use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\Jobs\ExportJob;
+use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
+use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
+use Ghostwriter\Queue\Jobs\ReviewChapterJob;
+use Ghostwriter\Queue\Jobs\RewriteBlockJob;
+use Ghostwriter\Queue\Jobs\SynopsisJob;
+use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Rendering\BlockRenderer;
 use Ghostwriter\Rendering\BookAssembler;
 use Ghostwriter\Rendering\EpubExporter;
@@ -77,6 +88,22 @@ final class Plugin {
 				$c->get( ChapterRepository::class ),
 				$c->get( SourceRegistry::class )
 			),
+			// Provider AI: mock finché l'agent layer reale non arriva (fase 4).
+			// Sostituibile via filtro per sviluppo/test di integrazione.
+			ProviderInterface::class    => static function (): object {
+				$provider = apply_filters( 'gw_ai_provider', null );
+				return $provider instanceof ProviderInterface ? $provider : new MockProvider();
+			},
+			Dispatcher::class           => static fn( Plugin $c ): object => new Dispatcher(
+				static fn( string $job_class ): object => $c->make_job( $job_class ),
+				$c->get( LogRepository::class )
+			),
+			PipelineRouter::class       => static fn( Plugin $c ): object => new PipelineRouter(
+				$c->get( Dispatcher::class ),
+				$c->get( StateMachine::class ),
+				$c->get( ProjectRepository::class ),
+				$c->get( ChapterRepository::class )
+			),
 		);
 	}
 
@@ -128,6 +155,104 @@ final class Plugin {
 		if ( file_exists( $action_scheduler ) ) {
 			require_once $action_scheduler;
 		}
+
+		$this->register_queue();
+	}
+
+	/**
+	 * Coda e pipeline: job registrati sul Dispatcher, router sugli eventi.
+	 */
+	private function register_queue(): void {
+		$dispatcher = $this->get( Dispatcher::class );
+		foreach ( self::JOBS as $job_class ) {
+			$dispatcher->register_job( $job_class );
+		}
+
+		$this->get( PipelineRouter::class )->register();
+	}
+
+	/** @var array<int, class-string<\Ghostwriter\Queue\JobInterface>> */
+	private const JOBS = array(
+		ProposeOutlineJob::class,
+		MaterializeChaptersJob::class,
+		DraftChapterJob::class,
+		SynopsisJob::class,
+		ReviewChapterJob::class,
+		RewriteBlockJob::class,
+		ExportJob::class,
+	);
+
+	/**
+	 * Costruisce un job con le sue dipendenze (usato dal Dispatcher).
+	 *
+	 * @param class-string $job_class Classe del job.
+	 */
+	public function make_job( string $job_class ): object {
+		return match ( $job_class ) {
+			ProposeOutlineJob::class     => new ProposeOutlineJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( Dossier::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageRepository::class ),
+				$this->get( LogRepository::class )
+			),
+			MaterializeChaptersJob::class => new MaterializeChaptersJob(
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( Dossier::class ),
+				$this->get( StateMachine::class ),
+				$this->get( LogRepository::class )
+			),
+			DraftChapterJob::class       => new DraftChapterJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( Dossier::class ),
+				$this->get( StateMachine::class ),
+				$this->get( SchemaValidator::class ),
+				$this->get( UsageRepository::class ),
+				$this->get( LogRepository::class )
+			),
+			SynopsisJob::class           => new SynopsisJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( Dossier::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageRepository::class ),
+				$this->get( LogRepository::class )
+			),
+			ReviewChapterJob::class      => new ReviewChapterJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( StateMachine::class ),
+				$this->get( SchemaValidator::class ),
+				$this->get( UsageRepository::class ),
+				$this->get( LogRepository::class )
+			),
+			RewriteBlockJob::class       => new RewriteBlockJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( BlockRevisionService::class ),
+				$this->get( SchemaValidator::class ),
+				$this->get( UsageRepository::class ),
+				$this->get( LogRepository::class ),
+				fn( string $class, array $args ) => $this->get( Dispatcher::class )->dispatch( $class, $args )
+			),
+			ExportJob::class             => new ExportJob(
+				$this->get( ProjectRepository::class ),
+				$this->get( BookAssembler::class ),
+				$this->get( ThemeRegistry::class ),
+				$this->get( PdfExporter::class ),
+				$this->get( EpubExporter::class ),
+				$this->get( StateMachine::class ),
+				$this->get( LogRepository::class )
+			),
+			default                      => throw new \InvalidArgumentException( "Job sconosciuto: {$job_class}" ),
+		};
 	}
 
 	public function load_textdomain(): void {
