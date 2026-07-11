@@ -1,8 +1,8 @@
 # Ghostwriter — Plugin WordPress
 
 Produzione di libri completi (PDF + ePub) in WordPress con AI in background.
-Contratto dati e macchine a stati: [`../ghostwriter-spec/README.md`](../ghostwriter-spec/README.md).
-Architettura: [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
+Contratto dati e macchine a stati: [`ghostwriter-spec/README.md`](ghostwriter-spec/README.md).
+Architettura: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Requisiti
 
@@ -13,7 +13,6 @@ Architettura: [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
 ## Setup sviluppo
 
 ```bash
-cd ghostwriter-plugin
 composer install
 vendor/bin/phpunit   # unit test
 ```
@@ -24,8 +23,23 @@ vendor/bin/phpunit   # unit test
       tabelle custom (`gw_usage`, `gw_log`, `gw_block_revisions`), StateMachine,
       repository, validazione schemi, Dossier con lock ottimistico,
       BlockRevisionService, SourceRegistry
-- [ ] 2. Rendering prima dell'AI (ThemeRegistry, compilatori CSS, BlockRenderer, PdfExporter/EpubExporter)
-- [ ] 3. Coda e pipeline (Action Scheduler, Dispatcher, job con provider mock)
+- [x] **2. Rendering prima dell'AI** — BlockRenderer (profili pdf/epub, note
+      endnote, fallback ePub), RichText (markdown ristretto, input escapato),
+      Theme + ThemeRegistry (tema di serie "Classico", import zip validato:
+      schema + niente PHP + difesa zip-slip), MpdfCssCompiler ed
+      EpubCssCompiler (sottoinsieme sicuro, epub_fallback, epub_value),
+      PdfExporter (mPDF: mirrorMargins, TOC nativo, testatine per capitolo,
+      apertura recto, tempDir esplicita, fontdata dal tema), EpubExporter
+      (EPUB3 interno, spine per capitolo, nav annidata), BookAssembler
+      (unico punto WP del rendering)
+- [x] **3. Coda e pipeline** — Dispatcher su Action Scheduler (dedup
+      {job}:{project}:{chapter}, 3 tentativi con backoff 60/240s, on_failure →
+      stato failed), ProviderInterface + MockProvider (output sempre conformi
+      agli schemi), job: ProposeOutline, MaterializeChapters, DraftChapter
+      (retry mirato su errore di validazione), Synopsis, ReviewChapter,
+      RewriteBlock (versioning con feedback), Export; PipelineRouter su
+      gw_state_changed (generazione sequenziale, immagini saltate fino alla
+      fase 5)
 - [ ] 4. Agent layer (provider reali, ContextComposer, SkillsManager, RagService, UsageMeter)
 - [ ] 5. Pipeline complete (outline → capitoli → immagini → dossier)
 - [ ] 6. Copertina e preflight/export end-to-end
