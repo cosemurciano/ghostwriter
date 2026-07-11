@@ -14,6 +14,8 @@ use Ghostwriter\Rest\ProjectsController;
 final class Menu {
 
 	public const SLUG_PROJECTS = 'ghostwriter';
+	public const SLUG_NEW      = 'ghostwriter-new';
+	public const SLUG_CHAPTERS = 'ghostwriter-chapters';
 	public const SLUG_THEMES   = 'ghostwriter-themes';
 	public const SLUG_SKILLS   = 'ghostwriter-skills';
 	public const SLUG_SETTINGS = 'ghostwriter-settings';
@@ -23,6 +25,8 @@ final class Menu {
 
 	public function __construct(
 		private ProjectsPage $projects,
+		private NewProjectPage $new_project,
+		private ChaptersPage $chapters,
 		private ThemesPage $themes,
 		private SkillsPage $skills,
 		private SettingsPage $settings
@@ -52,6 +56,24 @@ final class Menu {
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_PROJECTS,
 			array( $this->projects, 'render' )
+		);
+
+		$this->hooks[] = (string) add_submenu_page(
+			self::SLUG_PROJECTS,
+			__( 'Aggiungi progetto', 'ghostwriter' ),
+			__( 'Aggiungi progetto', 'ghostwriter' ),
+			Capabilities::MANAGE_PROJECTS,
+			self::SLUG_NEW,
+			array( $this->new_project, 'render' )
+		);
+
+		$this->hooks[] = (string) add_submenu_page(
+			self::SLUG_PROJECTS,
+			__( 'Capitoli', 'ghostwriter' ),
+			__( 'Capitoli', 'ghostwriter' ),
+			Capabilities::MANAGE_PROJECTS,
+			self::SLUG_CHAPTERS,
+			array( $this->chapters, 'render' )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
