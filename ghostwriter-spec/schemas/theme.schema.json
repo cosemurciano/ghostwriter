@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ghostwriter/theme.schema.json",
+  "title": "Ghostwriter Theme (theme.json)",
+  "description": "Tema grafico dichiarativo, importabile come zip (theme.json + fonts/ + assets/ + pages/). Il plugin lo COMPILA in due CSS distinti: uno per mPDF, uno per ePub (solo sottoinsieme sicuro + fallback dichiarati). Mai interpretato a runtime: il CSS compilato va in cache con la versione del tema. Essendo dichiarativo, un tema può essere generato o variato dall'AI con questo schema come vincolo.",
+  "type": "object",
+  "required": ["meta", "tokens", "page", "blocks"],
+  "properties": {
+
+    "meta": {
+      "type": "object",
+      "required": ["name", "version", "supports_formats", "supports_blocks"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "supports_formats": {
+          "type": "array",
+          "description": "Formati pagina supportati (validati contro il format del progetto all'export)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "width_mm": { "type": "number" },
+              "height_mm": { "type": "number" },
+              "label": { "type": "string", "examples": ["15x23", "A5", "17x24"] }
+            }
+          }
+        },
+        "supports_blocks": {
+          "type": "array",
+          "description": "Tipi di blocco che il tema sa stilare. All'export: deve coprire structural_profile.allowed_blocks del progetto, altrimenti errore PRIMA di generare.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "tokens": {
+      "type": "object",
+      "description": "Design tokens: unica fonte di verità per i valori, referenziati per nome dal resto del tema",
+      "properties": {
+        "fonts": {
+          "type": "object",
+          "description": "Chiave = ruolo, valore = font. I file .ttf/.otf stanno in fonts/ nel pacchetto. ATTENZIONE licenze: l'embed nell'ePub richiede font con licenza embeddabile (OFL ok).",
+          "properties": {
+            "body": { "$ref": "#/definitions/fontDef" },
+            "heading": { "$ref": "#/definitions/fontDef" },
+            "mono": { "$ref": "#/definitions/fontDef" },
+            "caption": { "$ref": "#/definitions/fontDef" }
+          }
+        },
+        "palette": {
+          "type": "object",
+          "description": "Colori per nome. Ogni colore può dichiarare una variante ad alto contrasto per l'ePub (i reader e-ink appiattiscono i toni).",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "pattern": "^#([0-9a-fA-F]{6})$" },
+              "epub_value": { "type": "string", "pattern": "^#([0-9a-fA-F]{6})$" }
+            }
+          }
+        },
+        "scale": {
+          "type": "object",
+          "properties": {
+            "body_size_pt": { "type": "number", "examples": [11] },
+            "leading": { "type": "number", "examples": [1.45] },
+            "ratio": { "type": "number", "description": "Scala modulare per i livelli di heading", "examples": [1.25] }
+          }
+        }
+      }
+    },
+
+    "page": {
+      "type": "object",
+      "description": "Solo PDF (l'ePub è reflowable). Margini parametrici, mirroring interno/esterno gestito dal compilatore mPDF via @page :odd/:even.",
+      "properties": {
+        "margins_mm": {
+          "type": "object",
+          "properties": {
+            "top": { "type": "number" },
+            "bottom": { "type": "number" },
+            "inner": { "type": "number" },
+            "outer": { "type": "number" }
+          }
+        },
+        "running_headers": {
+          "type": "object",
+          "description": "Placeholder disponibili: {book_title} {chapter_title} {author} {page_number}",
+          "properties": {
+            "even": { "type": "string", "examples": ["{book_title}"] },
+            "odd": { "type": "string", "examples": ["{chapter_title}"] },
+            "style": { "type": "object" }
+          }
+        },
+        "footer": {
+          "type": "object",
+          "properties": {
+            "content": { "type": "string", "default": "{page_number}" },
+            "position": { "type": "string", "enum": ["outer", "center", "inner"], "default": "outer" }
+          }
+        },
+        "chapter_start": {
+          "type": "object",
+          "properties": {
+            "on": { "type": "string", "enum": ["any", "recto", "verso"], "default": "recto", "description": "recto = pagina destra, con eventuale pagina bianca inserita" },
+            "drop_mm": { "type": "number", "description": "Spazio bianco prima del titolo capitolo" },
+            "ornament_asset": { "type": ["string", "null"], "description": "Path relativo in assets/ (fregio di inizio capitolo)" }
+          }
+        }
+      }
+    },
+
+    "blocks": {
+      "type": "object",
+      "description": "Mapping tipo di blocco → stile. Le chiavi devono coprire meta.supports_blocks. I valori referenziano i tokens per nome (es. 'color': 'accent'). Proprietà non supportate dall'ePub vengono ignorate dal compilatore ePub salvo epub_fallback esplicito.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "epub_fallback": {
+            "type": "object",
+            "description": "Degrado esplicito per l'ePub. Es. box con sfondo → box bordato; float → block; pull quote → block quote."
+          }
+        }
+      },
+      "examples": [{
+        "paragrafo": { "indent": "1em", "align": "justify" },
+        "citazione": { "font-style": "italic", "margin-left": "2em", "border-left": "2pt solid accent" },
+        "box_approfondimento": {
+          "background": "muted", "padding": "1em",
+          "epub_fallback": { "background": "none", "border": "1pt solid text" }
+        },
+        "figura": { "caption": { "font": "caption", "size_delta": -1, "style": "italic" } }
+      }]
+    },
+
+    "pdf": {
+      "type": "object",
+      "description": "Direttive solo-PDF per il compilatore mPDF",
+      "properties": {
+        "hyphenation_lang": { "type": ["string", "null"], "examples": ["it"] },
+        "widows": { "type": "integer", "default": 2 },
+        "orphans": { "type": "integer", "default": 2 },
+        "toc": {
+          "type": "object",
+          "properties": {
+            "depth": { "type": "integer", "default": 2 },
+            "leader": { "type": "string", "enum": ["dots", "none"], "default": "dots" }
+          }
+        },
+        "notes_rendering": { "type": "string", "enum": ["footnotes", "endnotes"], "description": "Deve essere compatibile con notes_style del profilo strutturale" }
+      }
+    },
+
+    "epub": {
+      "type": "object",
+      "description": "Direttive solo-ePub. Regola d'oro: il compilatore ePub emette SOLO il sottoinsieme CSS sicuro (Kindle/Apple Books/ADE); tutto il resto passa dai fallback.",
+      "properties": {
+        "embed_fonts": { "type": "boolean", "default": true },
+        "respect_reader_settings": { "type": "boolean", "default": true, "description": "Se true: niente font-size assoluti sul body, l'utente comanda" },
+        "overrides": { "type": "object", "description": "Override puntuali per blocco, stessa struttura di 'blocks'" }
+      }
+    },
+
+    "special_pages": {
+      "type": "object",
+      "description": "Frammenti HTML parametrici in pages/ del pacchetto. Placeholder: {title} {subtitle} {author} {year} {publisher} {isbn} {edition}. Tradotti automaticamente perché i placeholder attingono al progetto (derivato o meno).",
+      "properties": {
+        "half_title": { "type": ["string", "null"], "description": "pages/half-title.html (occhiello)" },
+        "title_page": { "type": ["string", "null"], "description": "pages/title.html (frontespizio)" },
+        "colophon": { "type": ["string", "null"], "description": "pages/colophon.html" },
+        "cover_composition": {
+          "type": "object",
+          "description": "Come il plugin compone la tipografia SOPRA l'artwork (che è sempre senza testo)",
+          "properties": {
+            "front": { "type": "string", "description": "pages/cover-front.html: posizionamento titolo/sottotitolo/autore" },
+            "back": { "type": "string", "description": "pages/cover-back.html: blurb, bio, ISBN/barcode" },
+            "spine": { "type": ["string", "null"], "description": "pages/cover-spine.html, solo print_ready" }
+          }
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "fontDef": {
+      "type": "object",
+      "required": ["family", "files"],
+      "properties": {
+        "family": { "type": "string", "examples": ["EB Garamond"] },
+        "files": {
+          "type": "object",
+          "description": "Path relativi a fonts/ nel pacchetto",
+          "properties": {
+            "regular": { "type": "string" },
+            "italic": { "type": "string" },
+            "bold": { "type": "string" },
+            "bold_italic": { "type": "string" }
+          }
+        },
+        "embeddable": { "type": "boolean", "description": "Licenza permette embed in ePub" }
+      }
+    }
+  }
+}

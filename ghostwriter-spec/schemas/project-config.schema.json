@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ghostwriter/project-config.schema.json",
+  "title": "Ghostwriter Project Config",
+  "description": "Configurazione di un progetto libro. Salvata come meta del CPT gw_project. È il contratto che governa tutta la pipeline.",
+  "type": "object",
+  "required": ["schema_version", "language", "format", "structural_profile", "skills", "ai"],
+  "properties": {
+
+    "schema_version": { "type": "string", "const": "1.0" },
+
+    "language": {
+      "type": "string",
+      "description": "Lingua del libro, BCP-47 (it, en, de...)",
+      "examples": ["it"]
+    },
+
+    "derived_from": {
+      "type": ["integer", "null"],
+      "description": "ID del gw_project sorgente se questo progetto è una traduzione. Null per i progetti originali."
+    },
+
+    "brief": {
+      "type": "object",
+      "description": "Brief generale del libro. Alimenta il dossier e la generazione dell'indice.",
+      "properties": {
+        "thesis": { "type": "string", "description": "Tesi/obiettivo del libro in 2-4 frasi" },
+        "audience": { "type": "string", "description": "Pubblico target" },
+        "genre": { "type": "string", "enum": ["saggistica", "manualistica", "divulgazione", "guida", "narrativa", "altro"] },
+        "target_length": {
+          "type": "object",
+          "properties": {
+            "unit": { "type": "string", "enum": ["parole", "pagine", "battute"] },
+            "value": { "type": "integer" },
+            "tolerance_pct": { "type": "integer", "default": 15 }
+          }
+        }
+      }
+    },
+
+    "format": {
+      "type": "object",
+      "description": "Formato fisico target. Fissato all'avvio: vincola copertina e risoluzione immagini. L'ePub lo ignora (reflowable).",
+      "required": ["trim_width_mm", "trim_height_mm"],
+      "properties": {
+        "trim_width_mm": { "type": "number", "examples": [150, 148, 170] },
+        "trim_height_mm": { "type": "number", "examples": [230, 210, 240] },
+        "orientation": { "type": "string", "enum": ["portrait", "landscape"], "default": "portrait" },
+        "print_ready": {
+          "type": "boolean",
+          "default": false,
+          "description": "Se true: copertina con dorso e abbondanza, immagini a 300dpi obbligatorie"
+        },
+        "bleed_mm": { "type": "number", "default": 3 }
+      }
+    },
+
+    "structural_profile": {
+      "type": "object",
+      "description": "Profilo strutturale: quali tipi di blocco l'AI può produrre. Il tema grafico scelto all'export deve coprirli tutti (validazione incrociata).",
+      "required": ["allowed_blocks"],
+      "properties": {
+        "allowed_blocks": {
+          "type": "array",
+          "items": { "$ref": "chapter-content.schema.json#/definitions/blockType" },
+          "examples": [["paragrafo", "citazione", "box_approfondimento", "figura", "elenco"]]
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "description": "Profondità gerarchia capitoli: 1=solo capitoli, 2=capitoli+sottocapitoli, 3=parti+capitoli+sottocapitoli"
+        },
+        "notes_style": { "type": "string", "enum": ["footnotes", "endnotes", "none"], "default": "endnotes" },
+        "figures_per_chapter": {
+          "type": "object",
+          "properties": { "min": { "type": "integer" }, "max": { "type": "integer" } }
+        }
+      }
+    },
+
+    "skills": {
+      "type": "array",
+      "description": "Skills montate sul progetto, con versione bloccata per coerenza tra capitoli.",
+      "items": {
+        "type": "object",
+        "required": ["skill_id", "version", "phases"],
+        "properties": {
+          "skill_id": { "type": "string" },
+          "version": { "type": ["integer", "string"], "description": "Versione esplicita. Evitare 'latest' a progetto avviato." },
+          "phases": {
+            "type": "array",
+            "description": "Fasi della pipeline in cui la skill viene montata (controllo costi: ogni chiamata carica solo ciò che serve)",
+            "items": { "type": "string", "enum": ["outline", "draft", "review", "images", "cover", "translation", "glossary", "export"] }
+          }
+        }
+      }
+    },
+
+    "sources": {
+      "type": "object",
+      "description": "Fonti del progetto e infrastruttura RAG dedicata.",
+      "properties": {
+        "vector_store_id": { "type": ["string", "null"], "description": "ID del vector store dedicato al progetto" },
+        "index_chapters_in_vector_store": {
+          "type": "boolean",
+          "default": true,
+          "description": "Se true, i capitoli completati vengono indicizzati per il richiamo puntuale nei capitoli successivi"
+        },
+        "registry": {
+          "type": "array",
+          "description": "Registro fonti con metadati per bibliografia e licenze",
+          "items": {
+            "type": "object",
+            "required": ["source_id", "type", "title", "license"],
+            "properties": {
+              "source_id": { "type": "string" },
+              "type": { "type": "string", "enum": ["open_data", "pdf", "url", "dataset", "book", "article"] },
+              "title": { "type": "string" },
+              "authors": { "type": "array", "items": { "type": "string" } },
+              "url": { "type": "string" },
+              "license": { "type": "string", "examples": ["CC-BY-4.0", "CC0", "proprietaria", "pubblico dominio"] },
+              "attribution_required": { "type": "boolean" },
+              "citation": { "type": "string", "description": "Citazione bibliografica formattata (generata dai metadati, mai a memoria del modello)" }
+            }
+          }
+        },
+        "web_search_phases": {
+          "type": "array",
+          "description": "Fasi in cui il tool di ricerca web è attivo. Vuoto = mai.",
+          "items": { "type": "string", "enum": ["outline", "draft", "review"] },
+          "default": ["review"]
+        }
+      }
+    },
+
+    "ai": {
+      "type": "object",
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["anthropic", "openai"] },
+        "model": { "type": "string" },
+        "image_provider": { "type": "string" },
+        "image_model": { "type": "string" },
+        "budget": {
+          "type": "object",
+          "description": "Budget cap: la pipeline si ferma in stato 'paused_budget' al superamento",
+          "properties": {
+            "max_cost_eur": { "type": "number" },
+            "max_images": { "type": "integer" },
+            "alert_at_pct": { "type": "integer", "default": 80 }
+          }
+        }
+      }
+    },
+
+    "checkpoints": {
+      "type": "object",
+      "description": "Punti di approvazione umana. L'outline è irrinunciabile: governa tutta la spesa a valle.",
+      "properties": {
+        "outline": { "type": "boolean", "default": true },
+        "glossary": { "type": "boolean", "default": true, "description": "Solo progetti di traduzione" },
+        "chapter_review": { "type": "boolean", "default": false, "description": "Approvazione capitolo per capitolo" },
+        "cover": { "type": "boolean", "default": true },
+        "pre_export": { "type": "boolean", "default": true }
+      }
+    },
+
+    "cover": {
+      "type": "object",
+      "description": "Cover package. L'artwork è SEMPRE senza testo: la tipografia la compone il plugin (traduzioni gratis, controllo tipografico).",
+      "properties": {
+        "mode": { "type": "string", "enum": ["upload", "ai_generated"], "default": "ai_generated" },
+        "front_artwork_attachment_id": { "type": ["integer", "null"] },
+        "back_artwork_attachment_id": { "type": ["integer", "null"] },
+        "creative_brief": { "type": ["string", "null"], "description": "Generato dall'agent dal dossier, modificabile" },
+        "spine_width_mm": { "type": ["number", "null"], "description": "Calcolato da pagine e grammatura carta se print_ready" }
+      }
+    }
+  }
+}

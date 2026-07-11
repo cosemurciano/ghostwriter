@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ghostwriter/block-revision.schema.json",
+  "title": "Ghostwriter Block Revision",
+  "description": "Record di versione di un singolo blocco, conservato nella tabella gw_block_revisions. Ogni riscrittura (richiesta con feedback all'AI, o modifica manuale) archivia PRIMA la versione corrente come revisione, poi scrive la nuova versione nel formato intermedio del capitolo (_gw_content). Nessuna versione viene mai sovrascritta: il ripristino di una versione vecchia crea una NUOVA versione con contenuto identico (storia lineare, mai riscritta).",
+  "type": "object",
+  "required": ["block_id", "chapter_id", "version", "block"],
+  "properties": {
+
+    "block_id": { "type": "string", "description": "UUID del blocco (stabile attraverso tutte le versioni)" },
+    "chapter_id": { "type": "integer" },
+    "version": { "type": "integer", "minimum": 1 },
+
+    "block": {
+      "$ref": "chapter-content.schema.json#/definitions/block",
+      "description": "Snapshot completo del blocco a questa versione (tipo, props, sources)"
+    },
+
+    "origin": {
+      "type": "string",
+      "enum": ["ai_draft", "ai_review", "ai_rewrite", "manual_edit", "restore"],
+      "description": "Come è nata questa versione. ai_rewrite = riscrittura richiesta dall'utente con feedback; restore = ripristino di una versione precedente."
+    },
+
+    "feedback": {
+      "type": ["string", "null"],
+      "description": "Solo per ai_rewrite: il feedback dell'utente su cosa non andava ('troppo tecnico', 'manca il riferimento alla fonte X', 'accorcia e togli l'inciso'...). Conservato: è la traccia del perché delle modifiche, e nel tempo diventa materiale per affinare le skills di stile."
+    },
+
+    "restored_from_version": {
+      "type": ["integer", "null"],
+      "description": "Solo per restore: la versione da cui questo contenuto è stato ripristinato"
+    },
+
+    "generated_with": {
+      "type": ["object", "null"],
+      "description": "Solo per origini ai_*: tracciabilità di modello e skills",
+      "properties": {
+        "model": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "author_user_id": { "type": ["integer", "null"], "description": "Utente WP che ha richiesto la riscrittura / fatto la modifica manuale" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

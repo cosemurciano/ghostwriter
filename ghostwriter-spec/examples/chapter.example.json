@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": 412,
+  "meta": {
+    "title": "Le masserie fortificate del Salento",
+    "subtitle": null,
+    "epigraph": {
+      "text": "La pietra racconta ciò che gli archivi tacciono.",
+      "attribution": "Anonimo"
+    },
+    "word_count": 3840,
+    "generated_at": "2026-07-11T09:30:00Z",
+    "generated_with": {
+      "model": "claude-opus-4-8",
+      "skills": ["stile-divulgazione@3", "gestione-fonti@2"]
+    }
+  },
+  "blocks": [
+    {
+      "id": "b1f0a2c4-0001",
+      "type": "paragrafo",
+      "props": {
+        "text": "Chi percorre le campagne tra Lecce e Otranto incontra, a intervalli quasi regolari, torri massicce che emergono dagli uliveti...",
+        "role": "lead"
+      }
+    },
+    {
+      "id": "b1f0a2c4-0002",
+      "type": "heading",
+      "props": { "text": "Origini e funzione difensiva", "level": 2 }
+    },
+    {
+      "id": "b1f0a2c4-0003",
+      "type": "paragrafo",
+      "sources": [
+        { "source_id": "src-catasto-1750", "locator": "vol. II, ff. 34-36" }
+      ],
+      "props": {
+        "text": "I registri catastali del XVIII secolo censiscono oltre duecento strutture fortificate nella sola Terra d'Otranto[^n1]...",
+        "role": "normal"
+      }
+    },
+    {
+      "id": "b1f0a2c4-0004",
+      "type": "figura",
+      "props": {
+        "attachment_id": null,
+        "image_brief": "Illustrazione in stile acquerello di una masseria fortificata salentina con torre cinquecentesca, uliveti secolari in primo piano, luce del tardo pomeriggio, palette calda terrosa",
+        "caption": "Una tipica masseria fortificata con torre di avvistamento cinquecentesca.",
+        "alt": "Masseria in pietra con torre quadrata circondata da ulivi",
+        "size": "medium"
+      }
+    },
+    {
+      "id": "b1f0a2c4-0005",
+      "type": "box_approfondimento",
+      "props": {
+        "title": "Come leggere una torre",
+        "variant": "approfondimento",
+        "blocks": [
+          {
+            "id": "b1f0a2c4-0005a",
+            "type": "paragrafo",
+            "props": { "text": "Le caditoie sopra il portale, i beccatelli e la scarpa muraria inclinata sono gli indizi che datano la struttura...", "role": "normal" }
+          },
+          {
+            "id": "b1f0a2c4-0005b",
+            "type": "elenco",
+            "props": {
+              "ordered": false,
+              "items": [
+                "*Caditoie*: aperture verticali per la difesa piombante",
+                "*Beccatelli*: mensole in pietra che sorreggono il coronamento",
+                "*Scarpa*: base muraria inclinata contro le mine"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "b1f0a2c4-0006",
+      "type": "citazione",
+      "sources": [{ "source_id": "src-cosi-1989" }],
+      "props": {
+        "text": "La masseria non è mai soltanto un'azienda agricola: è un presidio, una comunità, un microcosmo.",
+        "attribution": "G. Cosi, *Torri marittime di Terra d'Otranto*",
+        "display": "block"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "note_id": "n1",
+      "text": "Il censimento completo è riportato nel Catasto Onciario, consultabile presso l'Archivio di Stato di Lecce.",
+      "source_ids": ["src-catasto-1750"]
+    }
+  ]
+}
