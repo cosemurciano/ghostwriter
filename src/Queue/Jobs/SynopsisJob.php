@@ -11,7 +11,7 @@ use Ghostwriter\Queue\JobInterface;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
 use Ghostwriter\Repository\ProjectRepository;
-use Ghostwriter\Repository\UsageRepository;
+use Ghostwriter\Ai\UsageMeter;
 
 /**
  * Ultimo passo di draft_ready: sinossi 100-200 parole + aggiornamenti di
@@ -26,7 +26,7 @@ final class SynopsisJob implements JobInterface {
 		private ChapterRepository $chapters,
 		private Dossier $dossier,
 		private StateMachine $states,
-		private UsageRepository $usage,
+		private UsageMeter $usage,
 		private LogRepository $log
 	) {
 	}

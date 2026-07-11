@@ -11,7 +11,7 @@ use Ghostwriter\Queue\JobInterface;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
 use Ghostwriter\Repository\ProjectRepository;
-use Ghostwriter\Repository\UsageRepository;
+use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Schema\SchemaValidator;
 
 /**
@@ -30,7 +30,7 @@ final class DraftChapterJob implements JobInterface {
 		private Dossier $dossier,
 		private StateMachine $states,
 		private SchemaValidator $validator,
-		private UsageRepository $usage,
+		private UsageMeter $usage,
 		private LogRepository $log
 	) {
 	}

@@ -10,7 +10,7 @@ use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\JobInterface;
 use Ghostwriter\Repository\LogRepository;
 use Ghostwriter\Repository\ProjectRepository;
-use Ghostwriter\Repository\UsageRepository;
+use Ghostwriter\Ai\UsageMeter;
 
 /**
  * Chiama l'AI (fase outline) con il brief e scrive l'outline proposto nel
@@ -27,7 +27,7 @@ final class ProposeOutlineJob implements JobInterface {
 		private ProjectRepository $projects,
 		private Dossier $dossier,
 		private StateMachine $states,
-		private UsageRepository $usage,
+		private UsageMeter $usage,
 		private LogRepository $log
 	) {
 	}
