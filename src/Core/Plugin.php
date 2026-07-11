@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Core;
 
+use Ghostwriter\Admin\ChaptersPage;
 use Ghostwriter\Admin\Menu;
+use Ghostwriter\Admin\NewProjectPage;
 use Ghostwriter\Admin\ProjectsPage;
 use Ghostwriter\Admin\SettingsPage;
 use Ghostwriter\Admin\SkillsPage;
@@ -181,11 +183,18 @@ final class Plugin {
 				$c->get( ThemeRegistry::class ),
 				$c->get( LogRepository::class )
 			),
+			NewProjectPage::class       => static fn(): object => new NewProjectPage(),
+			ChaptersPage::class         => static fn( Plugin $c ): object => new ChaptersPage(
+				$c->get( ChapterRepository::class ),
+				$c->get( StateMachine::class )
+			),
 			ThemesPage::class           => static fn( Plugin $c ): object => new ThemesPage( $c->get( ThemeRegistry::class ) ),
 			SkillsPage::class           => static fn( Plugin $c ): object => new SkillsPage( $c->get( SkillsManager::class ) ),
 			SettingsPage::class         => static fn(): object => new SettingsPage(),
 			Menu::class                 => static fn( Plugin $c ): object => new Menu(
 				$c->get( ProjectsPage::class ),
+				$c->get( NewProjectPage::class ),
+				$c->get( ChaptersPage::class ),
 				$c->get( ThemesPage::class ),
 				$c->get( SkillsPage::class ),
 				$c->get( SettingsPage::class )
