@@ -1,8 +1,8 @@
 # Ghostwriter — Plugin WordPress
 
 Produzione di libri completi (PDF + ePub) in WordPress con AI in background.
-Contratto dati e macchine a stati: [`../ghostwriter-spec/README.md`](../ghostwriter-spec/README.md).
-Architettura: [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
+Contratto dati e macchine a stati: [`ghostwriter-spec/README.md`](ghostwriter-spec/README.md).
+Architettura: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Requisiti
 
@@ -13,7 +13,6 @@ Architettura: [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
 ## Setup sviluppo
 
 ```bash
-cd ghostwriter-plugin
 composer install
 vendor/bin/phpunit   # unit test
 ```
