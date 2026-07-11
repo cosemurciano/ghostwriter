@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "ghostwriter/chapter-content.schema.json",
+  "title": "Ghostwriter Chapter Content (formato intermedio)",
+  "description": "Il contratto centrale del sistema. L'AI produce QUESTO, mai PDF o HTML finale. Salvato come meta del CPT gw_chapter (il post_content tiene una resa HTML di sola lettura per l'anteprima in editor). I compilatori PDF/ePub consumano questo formato. La traduzione opera blocco per blocco su questo formato.",
+  "type": "object",
+  "required": ["schema_version", "chapter_id", "blocks"],
+  "properties": {
+
+    "schema_version": { "type": "string", "const": "1.0" },
+
+    "chapter_id": { "type": "integer", "description": "ID del post gw_chapter" },
+
+    "meta": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": ["string", "null"] },
+        "epigraph": {
+          "type": ["object", "null"],
+          "properties": {
+            "text": { "type": "string" },
+            "attribution": { "type": "string" }
+          }
+        },
+        "word_count": { "type": "integer" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "generated_with": {
+          "type": "object",
+          "description": "Tracciabilità: modello e skills (con versione) usati per generare questo contenuto",
+          "properties": {
+            "model": { "type": "string" },
+            "skills": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "blocks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/block" }
+    },
+
+    "notes": {
+      "type": "array",
+      "description": "Note del capitolo, referenziate dai blocchi via note_id",
+      "items": {
+        "type": "object",
+        "required": ["note_id", "text"],
+        "properties": {
+          "note_id": { "type": "string" },
+          "text": { "type": "string" },
+          "source_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+
+  "definitions": {
+
+    "blockType": {
+      "type": "string",
+      "enum": [
+        "paragrafo",
+        "heading",
+        "citazione",
+        "box_approfondimento",
+        "figura",
+        "tabella",
+        "elenco",
+        "esercizio",
+        "codice",
+        "separatore",
+        "blurb"
+      ]
+    },
+
+    "richText": {
+      "type": "string",
+      "description": "Markdown ristretto: solo enfasi (*|**), apici, link e riferimenti nota [^note_id]. Niente heading, elenchi o HTML: la struttura è dei blocchi, non del testo."
+    },
+
+    "sourceRefs": {
+      "type": "array",
+      "description": "Provenienza: source_id dal registry del progetto. Obbligatorio dove il contenuto deriva da fonti (licenze CC-BY, bibliografia).",
+      "items": {
+        "type": "object",
+        "required": ["source_id"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "locator": { "type": "string", "description": "Pagina, sezione, riga del dataset..." }
+        }
+      }
+    },
+
+    "block": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "description": "UUID stabile del blocco. Chiave per traduzioni (mapping 1:1), revisioni puntuali e diff tra versioni. NON cambia mai alla riscrittura: cambia solo version." },
+        "type": { "$ref": "#/definitions/blockType" },
+        "version": { "type": "integer", "minimum": 1, "default": 1, "description": "Versione corrente del blocco. Incrementata a ogni riscrittura (AI o manuale). Le versioni precedenti sono conservate nella tabella gw_block_revisions (vedi block-revision.schema.json)." },
+        "sources": { "$ref": "#/definitions/sourceRefs" },
+        "props": { "type": "object", "description": "Proprietà specifiche per tipo, vedi sotto" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "paragrafo" } } },
+          "then": { "properties": { "props": {
+            "required": ["text"],
+            "properties": {
+              "text": { "$ref": "#/definitions/richText" },
+              "role": { "type": "string", "enum": ["normal", "lead", "transition"], "default": "normal" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "heading" } } },
+          "then": { "properties": { "props": {
+            "required": ["text", "level"],
+            "properties": {
+              "text": { "type": "string" },
+              "level": { "type": "integer", "minimum": 2, "maximum": 4, "description": "H1 è il titolo del capitolo (in meta), qui solo sezioni interne" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "citazione" } } },
+          "then": { "properties": { "props": {
+            "required": ["text"],
+            "properties": {
+              "text": { "$ref": "#/definitions/richText" },
+              "attribution": { "type": "string" },
+              "display": { "type": "string", "enum": ["block", "pull"], "default": "block" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "box_approfondimento" } } },
+          "then": { "properties": { "props": {
+            "required": ["title", "blocks"],
+            "properties": {
+              "title": { "type": "string" },
+              "variant": { "type": "string", "enum": ["approfondimento", "attenzione", "esempio", "definizione"], "default": "approfondimento" },
+              "blocks": { "type": "array", "items": { "$ref": "#/definitions/block" }, "description": "Blocchi annidati: solo paragrafo, elenco, figura" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "figura" } } },
+          "then": { "properties": { "props": {
+            "required": ["caption"],
+            "properties": {
+              "attachment_id": { "type": ["integer", "null"], "description": "Null finché l'immagine non è generata/caricata (placeholder)" },
+              "image_brief": { "type": "string", "description": "Brief per la generazione AI. Scritto in fase draft, consumato in fase images." },
+              "caption": { "$ref": "#/definitions/richText" },
+              "alt": { "type": "string", "description": "Obbligatorio per accessibilità ePub" },
+              "size": { "type": "string", "enum": ["small", "medium", "full"], "default": "medium" },
+              "credit": { "type": "string" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "tabella" } } },
+          "then": { "properties": { "props": {
+            "required": ["rows"],
+            "properties": {
+              "caption": { "$ref": "#/definitions/richText" },
+              "header": { "type": "array", "items": { "type": "string" } },
+              "rows": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } },
+              "epub_fallback": { "type": "string", "enum": ["scroll", "stacked"], "default": "stacked", "description": "Le tabelle larghe sui reader piccoli degradano a elenco impilato" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "elenco" } } },
+          "then": { "properties": { "props": {
+            "required": ["items"],
+            "properties": {
+              "ordered": { "type": "boolean", "default": false },
+              "items": { "type": "array", "items": { "$ref": "#/definitions/richText" } }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "esercizio" } } },
+          "then": { "properties": { "props": {
+            "required": ["text"],
+            "properties": {
+              "number": { "type": "string" },
+              "text": { "$ref": "#/definitions/richText" },
+              "solution": { "type": ["string", "null"], "description": "Se presente, il tema decide se stampare in appendice" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "codice" } } },
+          "then": { "properties": { "props": {
+            "required": ["code"],
+            "properties": {
+              "code": { "type": "string" },
+              "language": { "type": "string" },
+              "caption": { "type": "string" }
+            } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "blurb" } } },
+          "then": { "properties": { "props": {
+            "required": ["text"],
+            "properties": {
+              "text": { "$ref": "#/definitions/richText" },
+              "placement": { "type": "string", "enum": ["back_cover", "flap", "marketing"], "default": "back_cover" }
+            } } } }
+        }
+      ]
+    }
+  }
+}
