@@ -8,6 +8,8 @@ use Brain\Monkey\Functions;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\Jobs\GenerateImageJob;
+use Ghostwriter\Queue\Jobs\IndexChapterJob;
 use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
@@ -36,6 +38,7 @@ final class PipelineRouterTest extends TestCase {
 
 	private PipelineRouter $router;
 	private StateMachine $states;
+	private ChapterRepository $chapters_stub;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -82,6 +85,9 @@ final class PipelineRouterTest extends TestCase {
 			/** @var array<string, array<string, mixed>> */
 			public array $blocks = array();
 
+			/** @var array<string, mixed>|null */
+			public ?array $content = null;
+
 			public function __construct() { // phpcs:ignore
 			}
 
@@ -92,8 +98,13 @@ final class PipelineRouterTest extends TestCase {
 			public function find_block( int $chapter_id, string $block_id ): ?array {
 				return $this->blocks[ $block_id ] ?? null;
 			}
+
+			public function get_content( int $chapter_id ): ?array {
+				return $this->content;
+			}
 		};
 		$chapters->blocks['b1'] = array( 'id' => 'b1', 'type' => 'paragrafo', 'version' => 4 );
+		$this->chapters_stub    = $chapters;
 
 		$dispatcher = new Dispatcher(
 			static fn( string $class ): object => new $class(),
@@ -105,7 +116,7 @@ final class PipelineRouterTest extends TestCase {
 			},
 			static fn(): bool => false
 		);
-		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class ) as $job ) {
+		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class, GenerateImageJob::class, IndexChapterJob::class ) as $job ) {
 			$dispatcher->register_job( $job );
 		}
 
@@ -161,14 +172,15 @@ final class PipelineRouterTest extends TestCase {
 		self::assertSame( 'complete', $this->meta[ self::CH1 ][ StateMachine::META_STATE ] );
 	}
 
-	public function test_chapter_complete_starts_next_planned(): void {
+	public function test_chapter_complete_indexes_and_starts_next_planned(): void {
 		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'complete';
 		// CH2 senza stato → planned.
 
 		$this->router->on_state_changed( self::CH1, 'chapter', 'revised', 'complete', 'completed' );
 
-		self::assertSame( array( 'gw_job_draft_chapter' ), $this->hooks() );
-		self::assertSame( self::CH2, $this->enqueued[0]['args']['chapter_id'] );
+		self::assertSame( array( 'gw_job_index_chapter', 'gw_job_draft_chapter' ), $this->hooks() );
+		self::assertSame( self::CH1, $this->enqueued[0]['args']['chapter_id'] );
+		self::assertSame( self::CH2, $this->enqueued[1]['args']['chapter_id'] );
 	}
 
 	public function test_last_chapter_complete_moves_project_to_review(): void {
@@ -178,8 +190,29 @@ final class PipelineRouterTest extends TestCase {
 
 		$this->router->on_state_changed( self::CH2, 'chapter', 'revised', 'complete', 'completed' );
 
-		self::assertSame( array(), $this->hooks() );
+		self::assertSame( array( 'gw_job_index_chapter' ), $this->hooks() );
 		self::assertSame( 'review', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
+	}
+
+	public function test_revised_with_unresolved_figures_enters_images_phase(): void {
+		$chapters_stub          = $this->chapters_stub;
+		$chapters_stub->content = array(
+			'blocks' => array(
+				array( 'id' => 'f1', 'type' => 'figura', 'props' => array( 'attachment_id' => null, 'caption' => 'c', 'image_brief' => 'x' ) ),
+				array( 'id' => 'p1', 'type' => 'paragrafo', 'props' => array( 'text' => 't' ) ),
+			),
+		);
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'revised';
+
+		$this->router->on_state_changed( self::CH1, 'chapter', 'in_review', 'revised', 'review_completed' );
+
+		// Transizione a images_pending; la cascata reale (do_action) accoderebbe
+		// i GenerateImageJob: qui si simula l'evento successivo.
+		self::assertSame( 'images_pending', $this->meta[ self::CH1 ][ StateMachine::META_STATE ] );
+
+		$this->router->on_state_changed( self::CH1, 'chapter', 'revised', 'images_pending', 'images_requested' );
+		self::assertSame( array( 'gw_job_generate_image' ), $this->hooks() );
+		self::assertSame( 'f1', $this->enqueued[0]['args']['block_id'] );
 	}
 
 	public function test_rewrite_request_dispatches_rewrite_job_with_expected_version(): void {

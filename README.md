@@ -48,7 +48,15 @@ vendor/bin/phpunit   # unit test
       versioni bloccate); PhaseSchemas; UsageMeter con stima costi e budget
       cap → paused_budget, accodamento sospeso. RAG: NullRagService (vector
       store reale in fase 5 con IngestSourcesJob)
-- [ ] 5. Pipeline complete (outline → capitoli → immagini → dossier)
+- [x] **5. Pipeline complete** — fase immagini (GenerateImageJob parallelo:
+      image_brief → provider → Media Library → attachment_id nel blocco,
+      capitolo complete alla risoluzione dell'ultima figura; risoluzione da
+      formato progetto, 300dpi se print_ready); ingestione fonti
+      (IngestSourcesJob: TextExtractor per PDF/testo/URL → chunking → vector
+      store locale gw_rag_chunks); IndexChapterJob sui capitoli completati;
+      REST API ghostwriter/v1 (progetti, fonti, outline propose/edit/approve,
+      budget resume, capitoli, riscrittura/versioni/ripristino blocchi,
+      export con download autenticato, temi, skills)
 - [ ] 6. Copertina e preflight/export end-to-end
 - [ ] 7. Traduzioni (progetti derivati + glossario)
 - [ ] 8. Admin UI rifinita
@@ -73,6 +81,11 @@ vendor/bin/phpunit   # unit test
 - **Provider `mock` ammesso dallo schema**: l'enum `ai.provider` della copia
   plugin di project-config.schema.json include `mock` per sviluppo/test della
   pipeline senza rete.
+- **RAG locale lessicale (v1)**: il "vector store per progetto" è
+  implementato come indice locale (tabella `gw_rag_chunks`, chunking +
+  scoring TF-IDF in memoria): nessuna chiamata esterna, nessun lock-in.
+  Il passaggio a embeddings/vector store del provider potrà sostituire
+  `LocalRagService` dietro la stessa interfaccia.
 - **Provenienza della versione corrente di un blocco**: tracciata nel blocco
   stesso (chiavi interne `origin`, `generated_with`, `author_user_id`,
   `restored_from_version` nel formato intermedio, ammesse dallo schema) così

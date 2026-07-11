@@ -86,6 +86,46 @@ final class OpenAiProvider implements ProviderInterface {
 	}
 
 	/**
+	 * Images API: la dimensione richiesta viene mappata sulla size supportata
+	 * più vicina; il ritaglio esatto al formato lo fa l'ImageService.
+	 */
+	public function generate_image( ImageRequest $request ): ImageResult {
+		$size = $request->width_px > $request->height_px ? '1536x1024'
+			: ( $request->width_px < $request->height_px ? '1024x1536' : '1024x1024' );
+
+		$response = ( $this->transport )(
+			rtrim( $this->base_url, '/' ) . '/v1/images/generations',
+			array(
+				'timeout' => 300,
+				'headers' => array(
+					'content-type'  => 'application/json',
+					'authorization' => 'Bearer ' . $this->api_key,
+				),
+				'body'    => wp_json_encode(
+					array(
+						'model'  => $this->model,
+						'prompt' => $request->brief,
+						'size'   => $size,
+					)
+				),
+			)
+		);
+
+		$data = self::parse_http_response( $response );
+
+		$b64 = $data['data'][0]['b64_json'] ?? null;
+		if ( ! is_string( $b64 ) || '' === $b64 ) {
+			throw new AiProviderException( 'Risposta immagini OpenAI senza b64_json.', null, 'openai' );
+		}
+		$binary = base64_decode( $b64, true );
+		if ( false === $binary ) {
+			throw new AiProviderException( 'Immagine OpenAI non decodificabile.', null, 'openai' );
+		}
+
+		return new ImageResult( $binary, 'image/png', $this->model );
+	}
+
+	/**
 	 * @param mixed $response Ritorno del transport (formato WP HTTP API).
 	 * @return array<string, mixed> Body decodificato.
 	 */

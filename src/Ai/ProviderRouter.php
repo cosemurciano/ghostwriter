@@ -30,6 +30,32 @@ final class ProviderRouter implements ProviderInterface {
 		return $this->resolve( $request->project_id )->complete( $request );
 	}
 
+	public function generate_image( ImageRequest $request ): ImageResult {
+		return $this->resolve_image( $request->project_id )->generate_image( $request );
+	}
+
+	/**
+	 * Provider per le immagini: ai.image_provider/ai.image_model se dichiarati,
+	 * altrimenti il provider testuale (che può non supportare le immagini:
+	 * errore esplicito, mai degrado silenzioso).
+	 */
+	public function resolve_image( int $project_id ): ProviderInterface {
+		$config   = $this->projects->get_config( $project_id );
+		$provider = (string) ( $config['ai']['image_provider'] ?? $config['ai']['provider'] ?? 'mock' );
+		$model    = (string) ( $config['ai']['image_model'] ?? $config['ai']['model'] ?? '' );
+
+		$override = apply_filters( 'gw_ai_image_provider', null, $provider, $model, $project_id );
+		if ( $override instanceof ProviderInterface ) {
+			return $override;
+		}
+
+		$key = 'img|' . $provider . '|' . $model;
+		if ( ! isset( $this->resolved[ $key ] ) ) {
+			$this->resolved[ $key ] = $this->build( $provider, $model );
+		}
+		return $this->resolved[ $key ];
+	}
+
 	public function resolve( int $project_id ): ProviderInterface {
 		$config   = $this->projects->get_config( $project_id );
 		$provider = (string) ( $config['ai']['provider'] ?? 'mock' );

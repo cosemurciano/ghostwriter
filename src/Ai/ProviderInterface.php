@@ -18,4 +18,13 @@ interface ProviderInterface {
 	 * l'errore di validazione nel prompt, poi failed).
 	 */
 	public function complete( AiRequest $request ): AiResult;
+
+	/**
+	 * Generazione immagine da image_brief. I provider senza modelli di
+	 * immagine lanciano AiProviderException: la config di progetto può
+	 * indicare un image_provider diverso dal provider testuale.
+	 *
+	 * @throws AiProviderException Se il provider non supporta le immagini o la chiamata fallisce.
+	 */
+	public function generate_image( ImageRequest $request ): ImageResult;
 }

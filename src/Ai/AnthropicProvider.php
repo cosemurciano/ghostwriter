@@ -114,6 +114,14 @@ final class AnthropicProvider implements ProviderInterface {
 		);
 	}
 
+	public function generate_image( ImageRequest $request ): ImageResult {
+		throw new AiProviderException(
+			'Anthropic non offre generazione immagini: impostare ai.image_provider (es. openai) nella config di progetto.',
+			null,
+			'anthropic'
+		);
+	}
+
 	/**
 	 * @param mixed $response Ritorno del transport (formato WP HTTP API).
 	 * @return array<string, mixed> Body decodificato.
