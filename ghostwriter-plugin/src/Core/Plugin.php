@@ -7,6 +7,13 @@ use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\Dossier;
 use Ghostwriter\Domain\SourceRegistry;
 use Ghostwriter\Domain\StateMachine;
+use Ghostwriter\Rendering\BlockRenderer;
+use Ghostwriter\Rendering\BookAssembler;
+use Ghostwriter\Rendering\EpubExporter;
+use Ghostwriter\Rendering\PdfExporter;
+use Ghostwriter\Rendering\ThemeCompiler\EpubCssCompiler;
+use Ghostwriter\Rendering\ThemeCompiler\MpdfCssCompiler;
+use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
 use Ghostwriter\Repository\ProjectRepository;
@@ -41,6 +48,34 @@ final class Plugin {
 			BlockRevisionService::class => static fn( Plugin $c ): object => new BlockRevisionService(
 				$c->get( ChapterRepository::class ),
 				$c->get( LogRepository::class )
+			),
+			BlockRenderer::class        => static fn(): object => new BlockRenderer(),
+			MpdfCssCompiler::class      => static fn(): object => new MpdfCssCompiler(),
+			EpubCssCompiler::class      => static fn(): object => new EpubCssCompiler(),
+			ThemeRegistry::class        => static function ( Plugin $c ): object {
+				$uploads = wp_upload_dir();
+				return new ThemeRegistry(
+					$c->get( SchemaValidator::class ),
+					GHOSTWRITER_PLUGIN_DIR . 'themes-bundled',
+					trailingslashit( $uploads['basedir'] ) . 'ghostwriter/themes'
+				);
+			},
+			PdfExporter::class          => static function ( Plugin $c ): object {
+				$uploads = wp_upload_dir();
+				return new PdfExporter(
+					$c->get( BlockRenderer::class ),
+					$c->get( MpdfCssCompiler::class ),
+					trailingslashit( $uploads['basedir'] ) . 'ghostwriter/cache/mpdf-tmp'
+				);
+			},
+			EpubExporter::class         => static fn( Plugin $c ): object => new EpubExporter(
+				$c->get( BlockRenderer::class ),
+				$c->get( EpubCssCompiler::class )
+			),
+			BookAssembler::class        => static fn( Plugin $c ): object => new BookAssembler(
+				$c->get( ProjectRepository::class ),
+				$c->get( ChapterRepository::class ),
+				$c->get( SourceRegistry::class )
 			),
 		);
 	}

@@ -1,0 +1,125 @@
+{
+  "meta": {
+    "name": "Classico",
+    "version": "1.0.0",
+    "author": "Ghostwriter",
+    "supports_formats": [
+      { "width_mm": 150, "height_mm": 230, "label": "15x23" },
+      { "width_mm": 148, "height_mm": 210, "label": "A5" },
+      { "width_mm": 170, "height_mm": 240, "label": "17x24" }
+    ],
+    "supports_blocks": [
+      "paragrafo",
+      "heading",
+      "citazione",
+      "box_approfondimento",
+      "figura",
+      "tabella",
+      "elenco",
+      "esercizio",
+      "codice",
+      "separatore",
+      "blurb"
+    ]
+  },
+  "tokens": {
+    "fonts": {
+      "body": { "family": "DejaVu Serif", "files": {}, "embeddable": false },
+      "heading": { "family": "DejaVu Sans", "files": {}, "embeddable": false },
+      "mono": { "family": "DejaVu Sans Mono", "files": {}, "embeddable": false },
+      "caption": { "family": "DejaVu Sans", "files": {}, "embeddable": false }
+    },
+    "palette": {
+      "text": { "value": "#1a1a1a", "epub_value": "#000000" },
+      "accent": { "value": "#7a1f1f", "epub_value": "#5a0f0f" },
+      "muted": { "value": "#f2ede4", "epub_value": "#ffffff" }
+    },
+    "scale": {
+      "body_size_pt": 11,
+      "leading": 1.45,
+      "ratio": 1.25
+    }
+  },
+  "page": {
+    "margins_mm": {
+      "top": 20,
+      "bottom": 22,
+      "inner": 22,
+      "outer": 18
+    },
+    "running_headers": {
+      "even": "{book_title}",
+      "odd": "{chapter_title}"
+    },
+    "footer": {
+      "content": "{page_number}",
+      "position": "outer"
+    },
+    "chapter_start": {
+      "on": "recto",
+      "drop_mm": 40
+    }
+  },
+  "blocks": {
+    "paragrafo": { "indent": "1.2em", "align": "justify", "margin": "0" },
+    "heading": { "color": "accent", "margin": "1.4em 0 0.5em 0" },
+    "citazione": {
+      "font-style": "italic",
+      "margin": "1em 2em",
+      "border-left": "2pt solid accent",
+      "padding-left": "1em"
+    },
+    "box_approfondimento": {
+      "background": "muted",
+      "padding": "1em",
+      "margin": "1em 0",
+      "epub_fallback": { "background": "none", "border": "1pt solid #1a1a1a" }
+    },
+    "figura": {
+      "align": "center",
+      "margin": "1em 0",
+      "caption": { "font": "caption", "size_delta": -1.5, "style": "italic" }
+    },
+    "tabella": { "margin": "1em 0" },
+    "elenco": { "margin": "0.5em 0 0.5em 1.5em" },
+    "esercizio": {
+      "border": "0.5pt solid accent",
+      "padding": "0.8em",
+      "margin": "1em 0"
+    },
+    "codice": {
+      "background": "muted",
+      "padding": "0.8em",
+      "margin": "1em 0",
+      "epub_fallback": { "background": "none", "border": "1px solid #999999" }
+    },
+    "separatore": {
+      "border": "none",
+      "margin": "1.5em auto",
+      "width": "30%",
+      "border-top": "0.5pt solid accent"
+    },
+    "blurb": { "font-style": "italic" }
+  },
+  "pdf": {
+    "hyphenation_lang": "it",
+    "widows": 2,
+    "orphans": 2,
+    "toc": { "depth": 2, "leader": "dots" },
+    "notes_rendering": "endnotes"
+  },
+  "epub": {
+    "embed_fonts": false,
+    "respect_reader_settings": true
+  },
+  "special_pages": {
+    "half_title": "pages/half-title.html",
+    "title_page": "pages/title.html",
+    "colophon": "pages/colophon.html",
+    "cover_composition": {
+      "front": "pages/cover-front.html",
+      "back": "pages/cover-back.html",
+      "spine": null
+    }
+  }
+}

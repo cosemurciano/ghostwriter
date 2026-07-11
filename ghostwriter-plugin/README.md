@@ -24,7 +24,15 @@ vendor/bin/phpunit   # unit test
       tabelle custom (`gw_usage`, `gw_log`, `gw_block_revisions`), StateMachine,
       repository, validazione schemi, Dossier con lock ottimistico,
       BlockRevisionService, SourceRegistry
-- [ ] 2. Rendering prima dell'AI (ThemeRegistry, compilatori CSS, BlockRenderer, PdfExporter/EpubExporter)
+- [x] **2. Rendering prima dell'AI** — BlockRenderer (profili pdf/epub, note
+      endnote, fallback ePub), RichText (markdown ristretto, input escapato),
+      Theme + ThemeRegistry (tema di serie "Classico", import zip validato:
+      schema + niente PHP + difesa zip-slip), MpdfCssCompiler ed
+      EpubCssCompiler (sottoinsieme sicuro, epub_fallback, epub_value),
+      PdfExporter (mPDF: mirrorMargins, TOC nativo, testatine per capitolo,
+      apertura recto, tempDir esplicita, fontdata dal tema), EpubExporter
+      (EPUB3 interno, spine per capitolo, nav annidata), BookAssembler
+      (unico punto WP del rendering)
 - [ ] 3. Coda e pipeline (Action Scheduler, Dispatcher, job con provider mock)
 - [ ] 4. Agent layer (provider reali, ContextComposer, SkillsManager, RagService, UsageMeter)
 - [ ] 5. Pipeline complete (outline → capitoli → immagini → dossier)
