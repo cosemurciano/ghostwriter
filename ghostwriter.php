@@ -3,7 +3,7 @@
  * Plugin Name:       Ghostwriter
  * Plugin URI:        https://github.com/cosemurciano/ghostwriter
  * Description:       Produzione di libri completi (PDF + ePub) in WordPress con AI in background: outline, capitoli, immagini, copertine, traduzioni.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Cosè Murciano
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'GHOSTWRITER_VERSION', '0.1.0' );
+define( 'GHOSTWRITER_VERSION', '0.2.0' );
 define( 'GHOSTWRITER_PLUGIN_FILE', __FILE__ );
 define( 'GHOSTWRITER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GHOSTWRITER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

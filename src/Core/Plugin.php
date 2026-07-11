@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Core;
 
+use Ghostwriter\Admin\Menu;
+use Ghostwriter\Admin\ProjectsPage;
+use Ghostwriter\Admin\SettingsPage;
+use Ghostwriter\Admin\SkillsPage;
+use Ghostwriter\Admin\ThemesPage;
 use Ghostwriter\Ai\ContextComposer;
 use Ghostwriter\Ai\LocalRagService;
 use Ghostwriter\Ai\PhaseSchemas;
@@ -158,6 +163,23 @@ final class Plugin {
 				$c->get( DerivedProjectFactory::class ),
 				$c->get( GlossaryService::class )
 			),
+			ProjectsPage::class         => static fn( Plugin $c ): object => new ProjectsPage(
+				$c->get( ProjectRepository::class ),
+				$c->get( ChapterRepository::class ),
+				$c->get( StateMachine::class ),
+				$c->get( UsageMeter::class ),
+				$c->get( ThemeRegistry::class ),
+				$c->get( LogRepository::class )
+			),
+			ThemesPage::class           => static fn( Plugin $c ): object => new ThemesPage( $c->get( ThemeRegistry::class ) ),
+			SkillsPage::class           => static fn( Plugin $c ): object => new SkillsPage( $c->get( SkillsManager::class ) ),
+			SettingsPage::class         => static fn(): object => new SettingsPage(),
+			Menu::class                 => static fn( Plugin $c ): object => new Menu(
+				$c->get( ProjectsPage::class ),
+				$c->get( ThemesPage::class ),
+				$c->get( SkillsPage::class ),
+				$c->get( SettingsPage::class )
+			),
 			ChaptersController::class   => static fn( Plugin $c ): object => new ChaptersController(
 				$c->get( ChapterRepository::class ),
 				$c->get( BlockRevisionService::class ),
@@ -237,6 +259,10 @@ final class Plugin {
 				$this->get( RegistryController::class )->register_routes();
 			}
 		);
+
+		if ( is_admin() ) {
+			$this->get( Menu::class )->register();
+		}
 	}
 
 	/**
