@@ -33,6 +33,9 @@
         }
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "prune-vendor": "php tools/prune-vendor.php",
+        "post-install-cmd": "@prune-vendor",
+        "post-update-cmd": "@prune-vendor"
     }
 }

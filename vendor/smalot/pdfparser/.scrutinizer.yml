@@ -1,0 +1,21 @@
+build:
+    cache:
+        directories:
+            - vendor # Cache for already installed composer package -> speed up composer install
+    nodes:
+        analysis:
+            environment:
+                php:
+                    version: 8.2
+                    ini:
+                        memory_limit: "-1"
+                variables:
+                    XDEBUG_MODE: 'coverage'
+            tests:
+                override:
+                    - php-scrutinizer-run
+                    -
+                        command: make install-dev-tools && make run-phpunit ARGS="--migrate-configuration" && make run-phpunit ARGS="--exclude-group memory-heavy --coverage-clover coverage/clover.xml"
+                        coverage:
+                            file: coverage/clover.xml
+                            format: clover
