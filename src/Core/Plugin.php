@@ -22,10 +22,12 @@ use Ghostwriter\Queue\Jobs\GenerateImageJob;
 use Ghostwriter\Queue\Jobs\IndexChapterJob;
 use Ghostwriter\Queue\Jobs\IngestSourcesJob;
 use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
+use Ghostwriter\Queue\Jobs\ProposeGlossaryJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
+use Ghostwriter\Queue\Jobs\TranslateChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Rendering\BlockRenderer;
 use Ghostwriter\Rest\ChaptersController;
@@ -44,6 +46,8 @@ use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Repository\RagChunkRepository;
 use Ghostwriter\Repository\UsageRepository;
 use Ghostwriter\Sources\TextExtractor;
+use Ghostwriter\Translation\DerivedProjectFactory;
+use Ghostwriter\Translation\GlossaryService;
 use Ghostwriter\Schema\SchemaValidator;
 
 /**
@@ -134,13 +138,25 @@ final class Plugin {
 				static fn( string $job_class ): object => $c->make_job( $job_class ),
 				$c->get( LogRepository::class )
 			),
+			DerivedProjectFactory::class => static fn( Plugin $c ): object => new DerivedProjectFactory(
+				$c->get( ProjectRepository::class ),
+				$c->get( ChapterRepository::class ),
+				$c->get( Dossier::class ),
+				$c->get( StateMachine::class )
+			),
+			GlossaryService::class      => static fn( Plugin $c ): object => new GlossaryService(
+				$c->get( ProjectRepository::class ),
+				$c->get( Dossier::class )
+			),
 			ProjectsController::class   => static fn( Plugin $c ): object => new ProjectsController(
 				$c->get( ProjectRepository::class ),
 				$c->get( Dossier::class ),
 				$c->get( SourceRegistry::class ),
 				$c->get( StateMachine::class ),
 				$c->get( Dispatcher::class ),
-				$c->get( UsageMeter::class )
+				$c->get( UsageMeter::class ),
+				$c->get( DerivedProjectFactory::class ),
+				$c->get( GlossaryService::class )
 			),
 			ChaptersController::class   => static fn( Plugin $c ): object => new ChaptersController(
 				$c->get( ChapterRepository::class ),
@@ -246,6 +262,8 @@ final class Plugin {
 		GenerateImageJob::class,
 		IngestSourcesJob::class,
 		IndexChapterJob::class,
+		ProposeGlossaryJob::class,
+		TranslateChapterJob::class,
 		ExportJob::class,
 	);
 
@@ -328,6 +346,25 @@ final class Plugin {
 				$this->get( ProjectRepository::class ),
 				$this->get( ChapterRepository::class ),
 				$this->get( LocalRagService::class ),
+				$this->get( LogRepository::class )
+			),
+			ProposeGlossaryJob::class    => new ProposeGlossaryJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( GlossaryService::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
+			),
+			TranslateChapterJob::class   => new TranslateChapterJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( DerivedProjectFactory::class ),
+				$this->get( GlossaryService::class ),
+				$this->get( StateMachine::class ),
+				$this->get( SchemaValidator::class ),
+				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
 			),
 			ExportJob::class             => new ExportJob(

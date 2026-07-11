@@ -16,6 +16,8 @@ final class MockProvider implements ProviderInterface {
 			AiRequest::PHASE_SYNOPSIS => $this->synopsis( $request ),
 			AiRequest::PHASE_REVIEW   => $this->review( $request ),
 			AiRequest::PHASE_REWRITE  => $this->rewrite( $request ),
+			AiRequest::PHASE_GLOSSARY => $this->glossary( $request ),
+			AiRequest::PHASE_TRANSLATION => $this->translation( $request ),
 			default                   => throw new \InvalidArgumentException( "Fase sconosciuta: {$request->phase}" ),
 		};
 
@@ -149,6 +151,67 @@ final class MockProvider implements ProviderInterface {
 	public function generate_image( ImageRequest $request ): ImageResult {
 		$png = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' );
 		return new ImageResult( (string) $png, 'image/png', 'mock-image-1' );
+	}
+
+	/**
+	 * @return array<string, mixed> {glossary: [{source_term, target_term}]}.
+	 */
+	private function glossary( AiRequest $request ): array {
+		$glossary = array();
+		foreach ( (array) ( $request->context['candidate_terms'] ?? array() ) as $candidate ) {
+			$term       = (string) ( $candidate['term'] ?? '' );
+			$glossary[] = array(
+				'source_term' => $term,
+				'target_term' => '[tr] ' . $term,
+				'note'        => '',
+			);
+		}
+		if ( empty( $glossary ) ) {
+			$glossary[] = array(
+				'source_term' => 'termine',
+				'target_term' => '[tr] termine',
+			);
+		}
+		return array( 'glossary' => $glossary );
+	}
+
+	/**
+	 * Traduzione mock: stessi id e type, testi prefissati con la lingua target.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function translation( AiRequest $request ): array {
+		$source = (array) ( $request->context['source_content'] ?? array() );
+		$lang   = (string) ( $request->context['target_language'] ?? 'xx' );
+		if ( empty( $source['blocks'] ) ) {
+			throw new \InvalidArgumentException( 'Contesto translation senza source_content.' );
+		}
+
+		if ( isset( $source['meta']['title'] ) ) {
+			$source['meta']['title'] = "[{$lang}] " . $source['meta']['title'];
+		}
+		$source['blocks'] = self::translate_blocks( $source['blocks'], $lang );
+
+		return $source;
+	}
+
+	/**
+	 * @param array<int, array<string, mixed>> $blocks Blocchi sorgente.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function translate_blocks( array $blocks, string $lang ): array {
+		foreach ( $blocks as $i => $block ) {
+			$blocks[ $i ]['version'] = 1;
+			foreach ( array( 'text', 'title', 'caption' ) as $key ) {
+				if ( ! empty( $block['props'][ $key ] ) && is_string( $block['props'][ $key ] ) ) {
+					$blocks[ $i ]['props'][ $key ] = "[{$lang}] " . $block['props'][ $key ];
+				}
+			}
+			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
+				$blocks[ $i ]['props']['blocks'] = self::translate_blocks( $block['props']['blocks'], $lang );
+			}
+		}
+		return $blocks;
 	}
 
 	private static function block_id( int $chapter_id, int $n ): string {

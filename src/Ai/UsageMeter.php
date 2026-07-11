@@ -60,9 +60,10 @@ final class UsageMeter {
 			return;
 		}
 
-		$state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
-		if ( StateMachine::can( StateMachine::TYPE_PROJECT, $state, 'budget_exceeded' ) ) {
-			$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'budget_exceeded', array( 'limit' => $limit ) );
+		$type  = $this->projects->is_translation( $project_id ) ? StateMachine::TYPE_TRANSLATION : StateMachine::TYPE_PROJECT;
+		$state = $this->states->state_of( $project_id, $type );
+		if ( StateMachine::can( $type, $state, 'budget_exceeded' ) ) {
+			$this->states->transition( $project_id, $type, 'budget_exceeded', array( 'limit' => $limit ) );
 		}
 	}
 

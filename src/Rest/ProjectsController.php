@@ -14,6 +14,8 @@ use Ghostwriter\Queue\Jobs\IngestSourcesJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Schema\SchemaValidationException;
+use Ghostwriter\Translation\DerivedProjectFactory;
+use Ghostwriter\Translation\GlossaryService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -33,7 +35,9 @@ final class ProjectsController {
 		private SourceRegistry $sources,
 		private StateMachine $states,
 		private Dispatcher $dispatcher,
-		private UsageMeter $meter
+		private UsageMeter $meter,
+		private DerivedProjectFactory $derived,
+		private GlossaryService $glossary
 	) {
 	}
 
@@ -96,6 +100,36 @@ final class ProjectsController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'approve_outline' ),
+				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/derive',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'derive' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/glossary',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'update_glossary' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/glossary/approve',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'approve_glossary' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -257,6 +291,70 @@ final class ProjectsController {
 		return $this->transition_endpoint( (int) $request['id'], 'outline_approved' );
 	}
 
+	/**
+	 * Crea il progetto di traduzione e accoda subito la proposta di glossario
+	 * (checkpoint obbligatorio prima di tradurre).
+	 */
+	public function derive( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$language = strtolower( trim( (string) $request->get_param( 'language' ) ) );
+		if ( ! preg_match( '/^[a-z]{2}(-[a-z0-9]{2,8})*$/i', $language ) ) {
+			return new WP_Error( 'gw_invalid_params', 'language (BCP-47, es. "en", "de") obbligatoria.', array( 'status' => 400 ) );
+		}
+
+		try {
+			$derived_id = $this->derived->derive( $project_id, $language );
+		} catch ( \RuntimeException $e ) {
+			return new WP_Error( 'gw_derive_rejected', $e->getMessage(), array( 'status' => 409 ) );
+		}
+
+		$this->dispatcher->dispatch( \Ghostwriter\Queue\Jobs\ProposeGlossaryJob::class, array( 'project_id' => $derived_id ) );
+
+		return new WP_REST_Response( $this->project_payload( $derived_id ), 201 );
+	}
+
+	public function update_glossary( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+		if ( ! $this->projects->is_translation( $project_id ) ) {
+			return new WP_Error( 'gw_not_translation', 'Il glossario esiste solo sui progetti di traduzione.', array( 'status' => 409 ) );
+		}
+
+		$glossary = $request->get_param( 'glossary' );
+		if ( ! is_array( $glossary ) ) {
+			return new WP_Error( 'gw_invalid_params', 'glossary (array) obbligatorio.', array( 'status' => 400 ) );
+		}
+
+		if ( 'glossary_proposed' !== $this->states->state_of( $project_id, StateMachine::TYPE_TRANSLATION ) ) {
+			return new WP_Error( 'gw_invalid_state', 'Il glossario è modificabile solo nello stato glossary_proposed.', array( 'status' => 409 ) );
+		}
+
+		try {
+			$this->glossary->put( $project_id, $glossary );
+		} catch ( SchemaValidationException $e ) {
+			return new WP_Error( 'gw_invalid_glossary', $e->getMessage(), array( 'status' => 422, 'errors' => $e->get_errors() ) );
+		}
+
+		return new WP_REST_Response( array( 'glossary' => $this->glossary->get( $project_id ) ) );
+	}
+
+	public function approve_glossary( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+		if ( ! $this->projects->is_translation( $project_id ) ) {
+			return new WP_Error( 'gw_not_translation', 'Il glossario esiste solo sui progetti di traduzione.', array( 'status' => 409 ) );
+		}
+		return $this->transition_endpoint( $project_id, 'glossary_approved' );
+	}
+
 	public function resume_budget( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$project_id = (int) $request['id'];
 		if ( ! $this->projects->exists( $project_id ) ) {
@@ -358,14 +456,24 @@ final class ProjectsController {
 			return self::not_found();
 		}
 
-		$state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
-		if ( ! StateMachine::can( StateMachine::TYPE_PROJECT, $state, $event, $this->previous_state( $project_id ) ) ) {
+		$type  = $this->entity_type( $project_id );
+		$state = $this->states->state_of( $project_id, $type );
+		if ( ! StateMachine::can( $type, $state, $event, $this->previous_state( $project_id ) ) ) {
 			return new WP_Error( 'gw_invalid_state', "Evento {$event} non ammesso dallo stato {$state}.", array( 'status' => 409 ) );
 		}
 
-		$new_state = $this->states->transition( $project_id, StateMachine::TYPE_PROJECT, $event, array( 'via' => 'rest' ) );
+		$new_state = $this->states->transition( $project_id, $type, $event, array( 'via' => 'rest' ) );
 
 		return new WP_REST_Response( array( 'state' => $new_state ) );
+	}
+
+	/**
+	 * I progetti derivati seguono la macchina a stati della traduzione.
+	 */
+	private function entity_type( int $project_id ): string {
+		return $this->projects->is_translation( $project_id )
+			? StateMachine::TYPE_TRANSLATION
+			: StateMachine::TYPE_PROJECT;
 	}
 
 	private function previous_state( int $project_id ): ?string {
@@ -377,10 +485,13 @@ final class ProjectsController {
 	 * @return array<string, mixed>
 	 */
 	private function project_payload( int $project_id ): array {
+		$type = $this->entity_type( $project_id );
+
 		return array(
 			'id'      => $project_id,
+			'type'    => $type,
 			'title'   => get_the_title( $project_id ),
-			'state'   => $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT ),
+			'state'   => $this->states->state_of( $project_id, $type ),
 			'config'  => $this->projects->get_config( $project_id ),
 			'dossier' => $this->projects->get_dossier( $project_id ),
 			'usage'   => $this->meter->report( $project_id ),

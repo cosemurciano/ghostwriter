@@ -14,6 +14,7 @@ use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
+use Ghostwriter\Queue\Jobs\TranslateChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
@@ -39,6 +40,7 @@ final class PipelineRouterTest extends TestCase {
 	private PipelineRouter $router;
 	private StateMachine $states;
 	private ChapterRepository $chapters_stub;
+	private ProjectRepository $projects_stub;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -72,11 +74,17 @@ final class PipelineRouterTest extends TestCase {
 			/** @var int[] */
 			public array $chapter_ids = array();
 
+			public bool $translation = false;
+
 			public function __construct() { // phpcs:ignore
 			}
 
 			public function get_chapter_ids( int $project_id ): array {
 				return $this->chapter_ids;
+			}
+
+			public function is_translation( int $project_id ): bool {
+				return $this->translation;
 			}
 		};
 		$projects->chapter_ids = array( self::CH1, self::CH2 );
@@ -116,11 +124,12 @@ final class PipelineRouterTest extends TestCase {
 			},
 			static fn(): bool => false
 		);
-		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class, GenerateImageJob::class, IndexChapterJob::class ) as $job ) {
+		foreach ( array( MaterializeChaptersJob::class, DraftChapterJob::class, SynopsisJob::class, ReviewChapterJob::class, RewriteBlockJob::class, GenerateImageJob::class, IndexChapterJob::class, TranslateChapterJob::class ) as $job ) {
 			$dispatcher->register_job( $job );
 		}
 
-		$this->router = new PipelineRouter( $dispatcher, $this->states, $projects, $chapters );
+		$this->projects_stub = $projects;
+		$this->router        = new PipelineRouter( $dispatcher, $this->states, $projects, $chapters );
 	}
 
 	protected function tearDown(): void {
@@ -213,6 +222,47 @@ final class PipelineRouterTest extends TestCase {
 		$this->router->on_state_changed( self::CH1, 'chapter', 'revised', 'images_pending', 'images_requested' );
 		self::assertSame( array( 'gw_job_generate_image' ), $this->hooks() );
 		self::assertSame( 'f1', $this->enqueued[0]['args']['block_id'] );
+	}
+
+	public function test_glossary_approved_starts_translation_of_first_planned_chapter(): void {
+		$this->projects_stub->translation                        = true;
+		$this->meta[ self::PROJECT ][ StateMachine::META_STATE ] = 'glossary_approved';
+
+		// glossary_approved → cascata translation_started (transizione reale)...
+		$this->router->on_state_changed( self::PROJECT, 'translation', 'glossary_proposed', 'glossary_approved', 'glossary_approved' );
+		self::assertSame( 'translating', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
+
+		// ...e sull'evento translating parte il primo capitolo planned.
+		$this->router->on_state_changed( self::PROJECT, 'translation', 'glossary_approved', 'translating', 'translation_started' );
+		self::assertSame( array( 'gw_job_translate_chapter' ), $this->hooks() );
+		self::assertSame( self::CH1, $this->enqueued[0]['args']['chapter_id'] );
+	}
+
+	public function test_translated_chapter_complete_ignores_drafting_pipeline_and_advances(): void {
+		$this->projects_stub->translation                    = true;
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'draft_ready';
+
+		// draft_ready di un capitolo derivato NON accoda la sinossi.
+		$this->router->on_state_changed( self::CH1, 'chapter', 'drafting', 'draft_ready', 'draft_ready' );
+		self::assertSame( array(), $this->hooks() );
+
+		// complete → capitolo successivo in traduzione.
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'complete';
+		$this->router->on_state_changed( self::CH1, 'chapter', 'draft_ready', 'complete', 'completed' );
+		self::assertSame( array( 'gw_job_translate_chapter' ), $this->hooks() );
+		self::assertSame( self::CH2, $this->enqueued[0]['args']['chapter_id'] );
+	}
+
+	public function test_last_translated_chapter_moves_translation_to_review(): void {
+		$this->projects_stub->translation                        = true;
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ]     = 'complete';
+		$this->meta[ self::CH2 ][ StateMachine::META_STATE ]     = 'complete';
+		$this->meta[ self::PROJECT ][ StateMachine::META_STATE ] = 'translating';
+
+		$this->router->on_state_changed( self::CH2, 'chapter', 'draft_ready', 'complete', 'completed' );
+
+		self::assertSame( array(), $this->hooks() );
+		self::assertSame( 'review', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
 	}
 
 	public function test_rewrite_request_dispatches_rewrite_job_with_expected_version(): void {

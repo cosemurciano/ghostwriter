@@ -14,6 +14,8 @@ final class AiRequest {
 	public const PHASE_SYNOPSIS = 'synopsis';
 	public const PHASE_REVIEW   = 'review';
 	public const PHASE_REWRITE  = 'rewrite';
+	public const PHASE_GLOSSARY    = 'glossary';
+	public const PHASE_TRANSLATION = 'translation';
 
 	/**
 	 * @param string               $phase   Fase della pipeline (determina skills e schema attesi).

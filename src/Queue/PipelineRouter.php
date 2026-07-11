@@ -11,6 +11,7 @@ use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
+use Ghostwriter\Queue\Jobs\TranslateChapterJob;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\ProjectRepository;
 
@@ -45,15 +46,66 @@ final class PipelineRouter {
 			$this->on_project_changed( $post_id, $to );
 			return;
 		}
+		if ( StateMachine::TYPE_TRANSLATION === $entity_type ) {
+			$this->on_translation_changed( $post_id, $to );
+			return;
+		}
 		if ( StateMachine::TYPE_CHAPTER === $entity_type ) {
+			$project_id = $this->chapters->get_project_id( $post_id );
 			// Budget cap (§4): progetto in paused_budget → accodamento sospeso.
 			// Alla ripresa (budget_resumed) la pipeline riparte perché ogni
 			// job è idempotente e rilancia dallo stato persistito.
-			if ( $this->is_paused( $this->chapters->get_project_id( $post_id ) ) ) {
+			if ( $this->is_paused( $project_id ) ) {
+				return;
+			}
+			if ( $this->projects->is_translation( $project_id ) ) {
+				$this->on_translated_chapter_changed( $post_id, $to, $project_id );
 				return;
 			}
 			$this->on_chapter_changed( $post_id, $to );
 		}
+	}
+
+	/**
+	 * Pipeline del progetto di traduzione: glossario approvato → traduzione
+	 * sequenziale capitolo per capitolo → revisione complessiva.
+	 */
+	private function on_translation_changed( int $project_id, string $to ): void {
+		switch ( $to ) {
+			case 'glossary_approved':
+				$this->states->transition( $project_id, StateMachine::TYPE_TRANSLATION, 'translation_started', array( 'router' => 'glossary_approved' ) );
+				break;
+
+			case 'translating':
+				$this->dispatch_next_translation( $project_id );
+				break;
+		}
+	}
+
+	/**
+	 * I capitoli derivati NON ripassano dalla pipeline di stesura
+	 * (sinossi/revisione/immagini): conta solo il completamento.
+	 */
+	private function on_translated_chapter_changed( int $chapter_id, string $to, int $project_id ): void {
+		if ( 'complete' !== $to ) {
+			return;
+		}
+		if ( ! $this->dispatch_next_translation( $project_id ) ) {
+			$this->states->transition( $project_id, StateMachine::TYPE_TRANSLATION, 'translation_completed', array( 'router' => 'all_chapters_translated' ) );
+		}
+	}
+
+	private function dispatch_next_translation( int $project_id ): bool {
+		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+			if ( 'planned' === $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER ) ) {
+				$this->dispatcher->dispatch(
+					TranslateChapterJob::class,
+					array( 'project_id' => $project_id, 'chapter_id' => $chapter_id )
+				);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private function is_paused( int $project_id ): bool {
