@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Ghostwriter\Core;
 
 use Ghostwriter\Ai\ContextComposer;
-use Ghostwriter\Ai\NullRagService;
+use Ghostwriter\Ai\LocalRagService;
 use Ghostwriter\Ai\PhaseSchemas;
 use Ghostwriter\Ai\ProviderInterface;
 use Ghostwriter\Ai\ProviderRouter;
@@ -18,6 +18,9 @@ use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\ExportJob;
+use Ghostwriter\Queue\Jobs\GenerateImageJob;
+use Ghostwriter\Queue\Jobs\IndexChapterJob;
+use Ghostwriter\Queue\Jobs\IngestSourcesJob;
 use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
@@ -25,6 +28,9 @@ use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Rendering\BlockRenderer;
+use Ghostwriter\Rest\ChaptersController;
+use Ghostwriter\Rest\ProjectsController;
+use Ghostwriter\Rest\RegistryController;
 use Ghostwriter\Rendering\BookAssembler;
 use Ghostwriter\Rendering\EpubExporter;
 use Ghostwriter\Rendering\PdfExporter;
@@ -33,8 +39,11 @@ use Ghostwriter\Rendering\ThemeCompiler\MpdfCssCompiler;
 use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
+use Ghostwriter\Media\ImageService;
 use Ghostwriter\Repository\ProjectRepository;
+use Ghostwriter\Repository\RagChunkRepository;
 use Ghostwriter\Repository\UsageRepository;
+use Ghostwriter\Sources\TextExtractor;
 use Ghostwriter\Schema\SchemaValidator;
 
 /**
@@ -101,7 +110,11 @@ final class Plugin {
 				$uploads = wp_upload_dir();
 				return new SkillsManager( trailingslashit( $uploads['basedir'] ) . 'ghostwriter/skills' );
 			},
-			RagServiceInterface::class  => static fn(): object => new NullRagService(),
+			RagChunkRepository::class   => static fn(): object => new RagChunkRepository(),
+			LocalRagService::class      => static fn( Plugin $c ): object => new LocalRagService( $c->get( RagChunkRepository::class ) ),
+			RagServiceInterface::class  => static fn( Plugin $c ): object => $c->get( LocalRagService::class ),
+			TextExtractor::class        => static fn(): object => new TextExtractor(),
+			ImageService::class         => static fn(): object => new ImageService(),
 			ContextComposer::class      => static fn( Plugin $c ): object => new ContextComposer(
 				$c->get( SkillsManager::class ),
 				$c->get( ProjectRepository::class ),
@@ -120,6 +133,23 @@ final class Plugin {
 			Dispatcher::class           => static fn( Plugin $c ): object => new Dispatcher(
 				static fn( string $job_class ): object => $c->make_job( $job_class ),
 				$c->get( LogRepository::class )
+			),
+			ProjectsController::class   => static fn( Plugin $c ): object => new ProjectsController(
+				$c->get( ProjectRepository::class ),
+				$c->get( Dossier::class ),
+				$c->get( SourceRegistry::class ),
+				$c->get( StateMachine::class ),
+				$c->get( Dispatcher::class ),
+				$c->get( UsageMeter::class )
+			),
+			ChaptersController::class   => static fn( Plugin $c ): object => new ChaptersController(
+				$c->get( ChapterRepository::class ),
+				$c->get( BlockRevisionService::class ),
+				$c->get( StateMachine::class )
+			),
+			RegistryController::class   => static fn( Plugin $c ): object => new RegistryController(
+				$c->get( ThemeRegistry::class ),
+				$c->get( SkillsManager::class )
 			),
 			PipelineRouter::class       => static fn( Plugin $c ): object => new PipelineRouter(
 				$c->get( Dispatcher::class ),
@@ -179,7 +209,18 @@ final class Plugin {
 			require_once $action_scheduler;
 		}
 
+		Activator::maybe_upgrade();
+
 		$this->register_queue();
+
+		add_action(
+			'rest_api_init',
+			function (): void {
+				$this->get( ProjectsController::class )->register_routes();
+				$this->get( ChaptersController::class )->register_routes();
+				$this->get( RegistryController::class )->register_routes();
+			}
+		);
 	}
 
 	/**
@@ -202,6 +243,9 @@ final class Plugin {
 		SynopsisJob::class,
 		ReviewChapterJob::class,
 		RewriteBlockJob::class,
+		GenerateImageJob::class,
+		IngestSourcesJob::class,
+		IndexChapterJob::class,
 		ExportJob::class,
 	);
 
@@ -264,6 +308,27 @@ final class Plugin {
 				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class ),
 				fn( string $class, array $args ) => $this->get( Dispatcher::class )->dispatch( $class, $args )
+			),
+			GenerateImageJob::class      => new GenerateImageJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( ImageService::class ),
+				$this->get( StateMachine::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
+			),
+			IngestSourcesJob::class      => new IngestSourcesJob(
+				$this->get( SourceRegistry::class ),
+				$this->get( TextExtractor::class ),
+				$this->get( LocalRagService::class ),
+				$this->get( LogRepository::class )
+			),
+			IndexChapterJob::class       => new IndexChapterJob(
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( LocalRagService::class ),
+				$this->get( LogRepository::class )
 			),
 			ExportJob::class             => new ExportJob(
 				$this->get( ProjectRepository::class ),

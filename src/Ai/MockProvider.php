@@ -142,6 +142,15 @@ final class MockProvider implements ProviderInterface {
 		return $block;
 	}
 
+	/**
+	 * PNG 1x1 trasparente: sufficiente per esercitare la pipeline immagini
+	 * (Media Library, blocchi figura) senza dipendenze grafiche.
+	 */
+	public function generate_image( ImageRequest $request ): ImageResult {
+		$png = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' );
+		return new ImageResult( (string) $png, 'image/png', 'mock-image-1' );
+	}
+
 	private static function block_id( int $chapter_id, int $n ): string {
 		return sprintf( 'mock-%08d-%04d', $chapter_id, $n );
 	}

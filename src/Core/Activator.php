@@ -8,7 +8,7 @@ namespace Ghostwriter\Core;
  */
 final class Activator {
 
-	public const DB_VERSION        = '1.0.0';
+	public const DB_VERSION        = '1.1.0';
 	public const DB_VERSION_OPTION = 'ghostwriter_db_version';
 
 	public static function activate(): void {
@@ -63,6 +63,22 @@ final class Activator {
 			) {$charset_collate};"
 		);
 
+		$rag_chunks = $wpdb->prefix . 'gw_rag_chunks';
+		dbDelta(
+			"CREATE TABLE {$rag_chunks} (
+				id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+				project_id BIGINT(20) UNSIGNED NOT NULL,
+				source_id VARCHAR(64) NULL,
+				chapter_id BIGINT(20) UNSIGNED NULL,
+				position INT(11) UNSIGNED NOT NULL DEFAULT 0,
+				chunk LONGTEXT NOT NULL,
+				created_at DATETIME NOT NULL,
+				PRIMARY KEY  (id),
+				KEY project (project_id),
+				KEY project_source (project_id, source_id)
+			) {$charset_collate};"
+		);
+
 		dbDelta(
 			"CREATE TABLE {$revisions} (
 				id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -81,6 +97,17 @@ final class Activator {
 				KEY chapter (chapter_id)
 			) {$charset_collate};"
 		);
+	}
+
+	/**
+	 * Upgrade dello schema DB al cambio di versione (chiamato su plugins_loaded:
+	 * dbDelta è idempotente e allinea le tabelle esistenti).
+	 */
+	public static function maybe_upgrade(): void {
+		if ( get_option( self::DB_VERSION_OPTION ) !== self::DB_VERSION ) {
+			self::create_tables();
+			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+		}
 	}
 
 	/**

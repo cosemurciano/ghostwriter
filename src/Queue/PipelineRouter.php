@@ -5,6 +5,8 @@ namespace Ghostwriter\Queue;
 
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\Jobs\GenerateImageJob;
+use Ghostwriter\Queue\Jobs\IndexChapterJob;
 use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
@@ -100,12 +102,34 @@ final class PipelineRouter {
 				break;
 
 			case 'revised':
-				// v1: niente fase immagini (fase 5). Il passaggio è una
-				// transizione, non un job: la cascata riparte da gw_state_changed.
-				$this->states->transition( $chapter_id, StateMachine::TYPE_CHAPTER, 'completed', array( 'router' => 'skip_images_v1' ) );
+				// Figure irrisolte → fase immagini (l'unica parallelizzabile);
+				// nessuna figura → il capitolo è completo.
+				$pending = GenerateImageJob::unresolved_figure_ids(
+					$this->chapters->get_content( $chapter_id )['blocks'] ?? array()
+				);
+				if ( empty( $pending ) ) {
+					$this->states->transition( $chapter_id, StateMachine::TYPE_CHAPTER, 'completed', array( 'router' => 'no_figures' ) );
+					break;
+				}
+				$this->states->transition( $chapter_id, StateMachine::TYPE_CHAPTER, 'images_requested', array( 'figures' => count( $pending ) ) );
+				break;
+
+			case 'images_pending':
+				foreach ( GenerateImageJob::unresolved_figure_ids( $this->chapters->get_content( $chapter_id )['blocks'] ?? array() ) as $block_id ) {
+					$this->dispatcher->dispatch(
+						GenerateImageJob::class,
+						array(
+							'project_id' => $project_id,
+							'chapter_id' => $chapter_id,
+							'block_id'   => $block_id,
+						)
+					);
+				}
 				break;
 
 			case 'complete':
+				// Capitolo completato nel vector store (se attivo), poi il successivo.
+				$this->dispatcher->dispatch( IndexChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
 				if ( ! $this->dispatch_next_chapter( $project_id ) ) {
 					// Ultimo capitolo: il progetto passa in revisione complessiva.
 					$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'generation_completed', array( 'router' => 'all_chapters_complete' ) );
