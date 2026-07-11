@@ -10,12 +10,23 @@ Architettura: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - WordPress 6.4+
 - Composer (per installare le dipendenze)
 
+## Installazione
+
+Il repository include già `vendor/` di produzione (potato da test/sample e
+font inutilizzati via `tools/prune-vendor.php`): si clona/copia la cartella
+in `wp-content/plugins/ghostwriter` e si attiva, senza bisogno di Composer
+sul server.
+
 ## Setup sviluppo
 
 ```bash
-composer install
-vendor/bin/phpunit   # unit test
+composer install          # aggiunge le dipendenze dev (PHPUnit, Brain Monkey)
+vendor/bin/phpunit        # unit test
+composer install --no-dev # PRIMA di committare: riporta vendor/ allo stato di produzione
 ```
+
+Le dipendenze dev non vanno mai committate né distribuite: l'autoload
+ottimizzato di produzione non le referenzia.
 
 ## Stato di avanzamento (ordine di sviluppo, ARCHITECTURE.md §14)
 

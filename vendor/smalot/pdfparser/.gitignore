@@ -1,0 +1,12 @@
+/.idea/*
+/coverage/*
+/vendor/*
+/xdebug/*
+/composer.phar
+/dev-tools/vendor
+/composer
+debug*
+composer.lock
+/.php-cs-fixer.cache
+/.phpunit.cache
+/.phpunit.result.cache
