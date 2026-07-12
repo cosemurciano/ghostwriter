@@ -50,6 +50,53 @@ class ChapterRepository {
 		return get_post_type( $chapter_id ) === PostTypes::CHAPTER;
 	}
 
+	/**
+	 * Rinumera menu_order (0..n-1) secondo la sequenza data. L'indice del
+	 * libro all'export deriva da qui.
+	 *
+	 * @param int[] $ordered_ids ID capitolo nella nuova sequenza.
+	 */
+	public function renumber( array $ordered_ids ): void {
+		foreach ( array_values( $ordered_ids ) as $i => $chapter_id ) {
+			wp_update_post( array( 'ID' => (int) $chapter_id, 'menu_order' => $i ) );
+		}
+	}
+
+	/**
+	 * Inserisce $new_id dopo $after nella sequenza (0 o id sconosciuto = in fondo).
+	 *
+	 * @param int[] $ids Sequenza corrente.
+	 * @return int[]
+	 */
+	public static function sequence_insert_after( array $ids, int $new_id, int $after ): array {
+		$ids      = array_values( array_map( 'intval', $ids ) );
+		$position = array_search( $after, $ids, true );
+		if ( false === $position ) {
+			$ids[] = $new_id;
+			return $ids;
+		}
+		array_splice( $ids, $position + 1, 0, array( $new_id ) );
+		return $ids;
+	}
+
+	/**
+	 * Sposta $id di un passo su/giù nella sequenza.
+	 *
+	 * @param int[] $ids Sequenza corrente.
+	 * @return int[] Sequenza (identica se lo spostamento non è possibile).
+	 */
+	public static function sequence_move( array $ids, int $id, string $direction ): array {
+		$ids      = array_values( array_map( 'intval', $ids ) );
+		$position = array_search( $id, $ids, true );
+		$target   = 'up' === $direction ? $position - 1 : $position + 1;
+		if ( false === $position || $target < 0 || $target >= count( $ids ) ) {
+			return $ids;
+		}
+		array_splice( $ids, $position, 1 );
+		array_splice( $ids, $target, 0, array( $id ) );
+		return $ids;
+	}
+
 	public function get_project_id( int $chapter_id ): int {
 		return (int) get_post_meta( $chapter_id, self::META_PROJECT_ID, true );
 	}

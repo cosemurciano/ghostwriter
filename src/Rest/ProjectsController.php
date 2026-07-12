@@ -136,6 +136,16 @@ final class ProjectsController {
 
 		register_rest_route(
 			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/chapters',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'add_chapter' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
 			'/projects/(?P<id>\d+)/pipeline/stop',
 			array(
 				'methods'             => 'POST',
@@ -578,6 +588,54 @@ final class ProjectsController {
 		$this->dispatcher->dispatch( ProposeOutlineJob::class, array( 'project_id' => $project_id ) );
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Capitolo aggiunto a mano, vuoto: l'admin lo scrive nell'editor o lo fa
+	 * generare con "Scrivi (AI)". Nasce in stato planned, con la sua voce di
+	 * outline nel dossier; la posizione è "dopo il capitolo X" o in fondo.
+	 */
+	public function add_chapter( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$ids = $this->projects->get_chapter_ids( $project_id );
+		if ( empty( $ids ) ) {
+			return new WP_Error( 'gw_invalid_state', 'I capitoli nascono con l\'approvazione dell\'indice: prima di allora aggiungi la voce direttamente nella tab Indice.', array( 'status' => 409 ) );
+		}
+
+		$title = sanitize_text_field( (string) $request->get_param( 'title' ) );
+		if ( '' === trim( $title ) ) {
+			return new WP_Error( 'gw_invalid_params', 'Il titolo del capitolo è obbligatorio.', array( 'status' => 400 ) );
+		}
+		$brief = sanitize_textarea_field( (string) $request->get_param( 'brief' ) );
+		$after = (int) $request->get_param( 'after' ); // 0 = in fondo.
+
+		$chapter_id = $this->chapters->create( $project_id, $title, $brief, 0, count( $ids ) );
+
+		$sequence = \Ghostwriter\Repository\ChapterRepository::sequence_insert_after( $ids, $chapter_id, $after );
+		$this->chapters->renumber( $sequence );
+
+		// Voce di outline nel dossier: è la memoria che l'AI userà per scriverlo.
+		$this->dossier->update_outline_entry(
+			$project_id,
+			$chapter_id,
+			array(
+				'parent_id'       => null,
+				'title'           => $title,
+				'brief'           => $brief,
+				'planned_sources' => array(),
+				'status'          => 'planned',
+				'synopsis'        => null,
+			)
+		);
+		$this->dossier->sync_outline_order( $project_id, $sequence );
+
+		$this->log->log( $project_id, $chapter_id, \Ghostwriter\Repository\LogRepository::LEVEL_INFO, 'chapter_added', array( 'title' => $title ) );
+
+		return new WP_REST_Response( array( 'chapter_id' => $chapter_id ), 201 );
 	}
 
 	/**

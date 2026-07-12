@@ -530,10 +530,15 @@ final class ProjectsPage {
 			. '<p class="gw-muted">' . esc_html( sprintf( /* translators: 1: completati, 2: totale */ __( '%1$d capitoli completati su %2$d', 'ghostwriter' ), $done, count( $ids ) ) ) . '</p>';
 
 		echo '<table class="widefat striped gw-clean-table"><tbody>';
-		foreach ( $ids as $chapter_id ) {
+		$last_index = count( $ids ) - 1;
+		foreach ( array_values( $ids ) as $index => $chapter_id ) {
 			$state     = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
 			$edit_link = get_edit_post_link( $chapter_id );
-			echo '<tr><td><strong>' . ( $edit_link ? '<a href="' . esc_url( $edit_link ) . '">' . esc_html( get_the_title( $chapter_id ) ) . '</a>' : esc_html( get_the_title( $chapter_id ) ) ) . '</strong></td>'
+			echo '<tr><td class="gw-chapter-move">'
+				. ( $index > 0 ? '<button class="button button-small" data-gw-action="POST /chapters/' . $chapter_id . '/move" data-gw-body=\'{"direction":"up"}\' title="' . esc_attr__( 'Sposta su', 'ghostwriter' ) . '">▲</button>' : '' )
+				. ( $index < $last_index ? '<button class="button button-small" data-gw-action="POST /chapters/' . $chapter_id . '/move" data-gw-body=\'{"direction":"down"}\' title="' . esc_attr__( 'Sposta giù', 'ghostwriter' ) . '">▼</button>' : '' )
+				. '</td>'
+				. '<td><span class="gw-outline-n">' . ( $index + 1 ) . '</span> <strong>' . ( $edit_link ? '<a href="' . esc_url( $edit_link ) . '">' . esc_html( get_the_title( $chapter_id ) ) . '</a>' : esc_html( get_the_title( $chapter_id ) ) ) . '</strong></td>'
 				. '<td>' . $this->state_badge( $state ) . '</td>'
 				. '<td class="gw-muted">' . ( ! empty( $words[ $chapter_id ] ) ? esc_html( number_format_i18n( (int) $words[ $chapter_id ] ) ) . ' ' . esc_html__( 'parole', 'ghostwriter' ) : '' ) . '</td>'
 				. '<td class="gw-row-actions">'
@@ -542,9 +547,25 @@ final class ProjectsPage {
 				. ( $edit_link ? '<a class="button button-small" href="' . esc_url( $edit_link ) . '">' . esc_html__( 'Apri nell\'editor', 'ghostwriter' ) . '</a> ' : '' )
 				. '<button class="button button-small" data-gw-chapter-blocks="' . $chapter_id . '">' . esc_html__( 'Blocchi', 'ghostwriter' ) . '</button>'
 				. '</td></tr>'
-				. '<tr class="gw-blocks-row" data-chapter="' . $chapter_id . '" style="display:none"><td colspan="4"><div class="gw-blocks-target gw-muted">…</div></td></tr>';
+				. '<tr class="gw-blocks-row" data-chapter="' . $chapter_id . '" style="display:none"><td colspan="5"><div class="gw-blocks-target gw-muted">…</div></td></tr>';
 		}
 		echo '</tbody></table>';
+
+		// Capitolo manuale: nasce vuoto e planned; poi editor o "Scrivi (AI)".
+		echo '<fieldset class="gw-regen">'
+			. '<legend><strong>' . esc_html__( 'Aggiungi capitolo', 'ghostwriter' ) . '</strong></legend>'
+			. '<form data-gw-form="POST /projects/' . $project_id . '/chapters" data-gw-transform="addChapter">'
+			. '<p><input type="text" name="title" class="large-text" required placeholder="' . esc_attr__( 'Titolo del capitolo', 'ghostwriter' ) . '"/></p>'
+			. '<p><textarea name="brief" rows="2" class="large-text" placeholder="' . esc_attr__( 'Obiettivo del capitolo (2-3 frasi, guida la scrittura AI — facoltativo)', 'ghostwriter' ) . '"></textarea></p>'
+			. '<p><label>' . esc_html__( 'Posizione:', 'ghostwriter' ) . ' <select name="after">'
+			. '<option value="0">' . esc_html__( 'In fondo al libro', 'ghostwriter' ) . '</option>';
+		foreach ( array_values( $ids ) as $index => $chapter_id ) {
+			echo '<option value="' . $chapter_id . '">' . esc_html( sprintf( /* translators: 1: numero, 2: titolo */ __( 'Dopo %1$d. %2$s', 'ghostwriter' ), $index + 1, get_the_title( $chapter_id ) ) ) . '</option>';
+		}
+		echo '</select></label> '
+			. '<button type="submit" class="button button-primary">' . esc_html__( 'Aggiungi capitolo vuoto', 'ghostwriter' ) . '</button></p>'
+			. '</form></fieldset>';
+
 		$this->box_close();
 	}
 
@@ -798,6 +819,7 @@ final class ProjectsPage {
 			'budget_exceeded'         => __( 'Budget superato: pipeline in pausa', 'ghostwriter' ),
 			'budget_still_exceeded'   => __( 'Budget ancora superato', 'ghostwriter' ),
 			'budget_resumed'          => __( 'Pipeline ripresa dopo pausa budget', 'ghostwriter' ),
+			'chapter_added'           => __( 'Capitolo aggiunto manualmente', 'ghostwriter' ),
 			'chapter_revised'         => __( 'Capitolo riscritto su istruzioni utente', 'ghostwriter' ),
 			'chapter_revise_failed'   => __( 'Riscrittura capitolo fallita', 'ghostwriter' ),
 			'pipeline_stopped'        => __( 'Elaborazione fermata dall\'utente', 'ghostwriter' ),

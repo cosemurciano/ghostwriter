@@ -234,7 +234,12 @@ final class PipelineRouter {
 				$this->dispatcher->dispatch( IndexChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
 				if ( ! $this->has_planned_chapters( $project_id ) ) {
 					// Ultimo capitolo: il progetto passa in revisione complessiva.
-					$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'generation_completed', array( 'router' => 'all_chapters_complete' ) );
+					// Guard: un capitolo aggiunto a mano può completarsi quando il
+					// progetto è già oltre 'generating' — lì non c'è nulla da avanzare.
+					$project_state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
+					if ( StateMachine::can( StateMachine::TYPE_PROJECT, $project_state, 'generation_completed' ) ) {
+						$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'generation_completed', array( 'router' => 'all_chapters_complete' ) );
+					}
 				} elseif ( $this->auto_advance( $project_id ) ) {
 					// Sequenza automatica solo se richiesta in config: di default
 					// il capitolo successivo si avvia dal pulsante "Scrivi (AI)".

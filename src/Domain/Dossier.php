@@ -114,6 +114,34 @@ final class Dossier {
 	}
 
 	/**
+	 * Riallinea l'outline all'ordine reale dei capitoli (menu_order): l'indice
+	 * del libro è una proiezione di quell'ordine, il dossier deve rispecchiarlo.
+	 *
+	 * @param int[] $ordered_ids ID capitolo nella sequenza corrente.
+	 * @return array<string, mixed> Dossier salvato.
+	 */
+	public function sync_outline_order( int $project_id, array $ordered_ids ): array {
+		$positions = array_flip( array_map( 'intval', array_values( $ordered_ids ) ) );
+
+		return $this->update(
+			$project_id,
+			static function ( array $dossier ) use ( $positions ): array {
+				$outline = array_values( (array) ( $dossier['outline'] ?? array() ) );
+				usort(
+					$outline,
+					static fn( array $a, array $b ): int =>
+						( $positions[ (int) ( $a['chapter_id'] ?? 0 ) ] ?? PHP_INT_MAX ) <=> ( $positions[ (int) ( $b['chapter_id'] ?? 0 ) ] ?? PHP_INT_MAX )
+				);
+				foreach ( $outline as $i => $entry ) {
+					$outline[ $i ]['order'] = $i;
+				}
+				$dossier['outline'] = $outline;
+				return $dossier;
+			}
+		);
+	}
+
+	/**
 	 * Registra la sinossi di un capitolo completato e gli aggiornamenti di continuità.
 	 *
 	 * @param array<string, mixed> $continuity Chiavi opzionali: terminology, concepts_covered, promises, style_decisions.
