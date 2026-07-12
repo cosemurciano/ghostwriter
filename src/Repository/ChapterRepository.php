@@ -168,6 +168,39 @@ class ChapterRepository {
 	}
 
 	/**
+	 * Parole del capitolo: testo dei blocchi (paragrafi, citazioni, elenchi,
+	 * esercizi, box annidati). Alimenta il contatore "parole scritte".
+	 *
+	 * @param array<string, mixed> $content Formato intermedio.
+	 */
+	public static function count_words( array $content ): int {
+		$count = 0;
+		$add   = static function ( string $text ) use ( &$count ): void {
+			$count += (int) preg_match_all( '/\S+/u', trim( $text ) );
+		};
+
+		$walk = static function ( array $blocks ) use ( &$walk, $add ): void {
+			foreach ( $blocks as $block ) {
+				$props = (array) ( ( (array) $block )['props'] ?? array() );
+				if ( isset( $props['text'] ) && is_string( $props['text'] ) ) {
+					$add( $props['text'] );
+				}
+				foreach ( (array) ( $props['items'] ?? array() ) as $item ) {
+					if ( is_string( $item ) ) {
+						$add( $item );
+					}
+				}
+				if ( isset( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+					$walk( $props['blocks'] );
+				}
+			}
+		};
+		$walk( (array) ( $content['blocks'] ?? array() ) );
+
+		return $count;
+	}
+
+	/**
 	 * Cerca un blocco per id, anche tra i blocchi annidati nei box.
 	 *
 	 * @return array<string, mixed>|null

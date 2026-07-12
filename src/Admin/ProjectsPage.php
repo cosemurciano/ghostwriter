@@ -524,9 +524,12 @@ final class ProjectsPage {
 				++$done;
 			}
 		}
-		$pct = count( $ids ) > 0 ? (int) round( 100 * $done / count( $ids ) ) : 0;
+		$pct         = count( $ids ) > 0 ? (int) round( 100 * $done / count( $ids ) ) : 0;
+		$total_words = array_sum( array_map( 'intval', array_filter( $words ) ) );
 		echo '<div class="gw-progress"><span style="width:' . $pct . '%"></span></div>'
-			. '<p class="gw-muted">' . esc_html( sprintf( /* translators: 1: completati, 2: totale */ __( '%1$d capitoli completati su %2$d', 'ghostwriter' ), $done, count( $ids ) ) ) . '</p>';
+			. '<p class="gw-muted">' . esc_html( sprintf( /* translators: 1: completati, 2: totale */ __( '%1$d capitoli completati su %2$d', 'ghostwriter' ), $done, count( $ids ) ) )
+			. ( $total_words > 0 ? esc_html( sprintf( /* translators: %s: numero parole */ __( ' · %s parole scritte', 'ghostwriter' ), number_format_i18n( $total_words ) ) ) : '' )
+			. '</p>';
 
 		echo '<table class="widefat striped gw-clean-table"><tbody>';
 		$last_index = count( $ids ) - 1;
