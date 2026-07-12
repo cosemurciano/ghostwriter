@@ -3,7 +3,7 @@
         'name' => 'cosemurciano/ghostwriter',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '4daba7aead201f27d1dc371f80052fdd84c7505e',
+        'reference' => '42e4af60867844fbda98bcb37cc2ac94c186fb57',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'cosemurciano/ghostwriter' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '4daba7aead201f27d1dc371f80052fdd84c7505e',
+            'reference' => '42e4af60867844fbda98bcb37cc2ac94c186fb57',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

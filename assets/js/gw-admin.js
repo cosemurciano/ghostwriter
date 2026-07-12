@@ -282,6 +282,41 @@
 			return { glossary: glossary };
 		},
 
+		// Impostazioni progetto: aggiornamento parziale della config.
+		projectSettings: function ( data, form ) {
+			var body = {
+				title: data.title,
+				brief: {
+					thesis: data.thesis || '',
+					audience: data.audience || '',
+					genre: data.genre,
+				},
+				ai: {
+					provider: data.provider,
+					model: data.model,
+					image_provider: data.image_provider || '',
+					image_model: data.image_model || '',
+					max_cost_eur: data.max_cost_eur || null,
+				},
+			};
+			if ( data.target_words ) {
+				body.brief.target_length = { unit: 'parole', value: parseInt( data.target_words, 10 ) };
+			}
+			// Formato e blocchi: solo se i campi non sono bloccati (disabled non finisce nel FormData).
+			if ( data.trim_width_mm ) {
+				body.format = {
+					trim_width_mm: parseFloat( data.trim_width_mm ),
+					trim_height_mm: parseFloat( data.trim_height_mm ),
+					print_ready: !! data.print_ready,
+				};
+				body.allowed_blocks = [];
+				form.querySelectorAll( 'input[name="allowed_blocks[]"]:checked' ).forEach( function ( input ) {
+					body.allowed_blocks.push( input.value );
+				} );
+			}
+			return body;
+		},
+
 		derive: function ( data ) {
 			return { language: data.language };
 		},

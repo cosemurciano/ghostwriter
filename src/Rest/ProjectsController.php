@@ -81,6 +81,16 @@ final class ProjectsController {
 
 		register_rest_route(
 			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/settings',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'update_settings' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
 			'/projects/(?P<id>\d+)/sources/test',
 			array(
 				'methods'             => 'POST',
@@ -329,6 +339,79 @@ final class ProjectsController {
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Aggiorna le impostazioni del progetto (parziali). Il formato fisico e
+	 * i blocchi ammessi sono modificabili solo PRIMA della generazione
+	 * (vincolano copertina, immagini e temi); brief, motore AI e budget
+	 * sempre. La config risultante è validata contro lo schema.
+	 */
+	public function update_settings( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$type   = $this->entity_type( $project_id );
+		$state  = $this->states->state_of( $project_id, $type );
+		$config = $this->projects->get_config( $project_id );
+
+		$structure_unlocked = in_array( $state, array( 'setup', 'sources_ingesting', 'outline_proposed', 'glossary_proposed' ), true );
+
+		$brief = $request->get_param( 'brief' );
+		if ( is_array( $brief ) ) {
+			$config['brief'] = array_merge( (array) ( $config['brief'] ?? array() ), array_intersect_key( $brief, array_flip( array( 'thesis', 'audience', 'genre', 'target_length' ) ) ) );
+		}
+
+		if ( null !== $request->get_param( 'title' ) && '' !== trim( (string) $request->get_param( 'title' ) ) ) {
+			wp_update_post( array( 'ID' => $project_id, 'post_title' => sanitize_text_field( (string) $request->get_param( 'title' ) ) ) );
+		}
+
+		$format = $request->get_param( 'format' );
+		if ( is_array( $format ) ) {
+			if ( ! $structure_unlocked ) {
+				return new WP_Error( 'gw_locked', "Il formato fisico è fissato: la generazione è già partita (stato {$state}).", array( 'status' => 409 ) );
+			}
+			$config['format'] = array_merge( (array) ( $config['format'] ?? array() ), array_intersect_key( $format, array_flip( array( 'trim_width_mm', 'trim_height_mm', 'print_ready', 'bleed_mm' ) ) ) );
+		}
+
+		$blocks = $request->get_param( 'allowed_blocks' );
+		if ( is_array( $blocks ) ) {
+			if ( ! $structure_unlocked ) {
+				return new WP_Error( 'gw_locked', "I blocchi ammessi sono fissati: la generazione è già partita (stato {$state}).", array( 'status' => 409 ) );
+			}
+			$config['structural_profile']['allowed_blocks'] = array_values( array_map( 'strval', $blocks ) );
+		}
+
+		$ai = $request->get_param( 'ai' );
+		if ( is_array( $ai ) ) {
+			foreach ( array( 'provider', 'model', 'image_provider', 'image_model' ) as $key ) {
+				if ( array_key_exists( $key, $ai ) ) {
+					if ( '' === (string) $ai[ $key ] ) {
+						unset( $config['ai'][ $key ] );
+					} else {
+						$config['ai'][ $key ] = (string) $ai[ $key ];
+					}
+				}
+			}
+			if ( array_key_exists( 'max_cost_eur', $ai ) ) {
+				if ( null === $ai['max_cost_eur'] || '' === $ai['max_cost_eur'] ) {
+					unset( $config['ai']['budget'] );
+				} else {
+					$config['ai']['budget']                 = (array) ( $config['ai']['budget'] ?? array() );
+					$config['ai']['budget']['max_cost_eur'] = (float) $ai['max_cost_eur'];
+				}
+			}
+		}
+
+		try {
+			$this->projects->save_config( $project_id, $config );
+		} catch ( SchemaValidationException $e ) {
+			return new WP_Error( 'gw_invalid_settings', $e->getMessage(), array( 'status' => 422, 'errors' => $e->get_errors() ) );
+		}
+
+		return new WP_REST_Response( $this->project_payload( $project_id ) );
 	}
 
 	/**
