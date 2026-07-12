@@ -33,6 +33,7 @@ return array(
     'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedListFilter' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedListFilter.php',
     'DeepCopy\\TypeFilter\\TypeFilter' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/TypeFilter.php',
     'DeepCopy\\TypeMatcher\\TypeMatcher' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/TypeMatcher/TypeMatcher.php',
+    'Ghostwriter\\Admin\\ChaptersListTable' => $baseDir . '/src/Admin/ChaptersListTable.php',
     'Ghostwriter\\Admin\\ChaptersPage' => $baseDir . '/src/Admin/ChaptersPage.php',
     'Ghostwriter\\Admin\\Menu' => $baseDir . '/src/Admin/Menu.php',
     'Ghostwriter\\Admin\\NewProjectPage' => $baseDir . '/src/Admin/NewProjectPage.php',

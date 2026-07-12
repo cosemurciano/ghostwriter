@@ -192,12 +192,7 @@ final class Plugin {
 			SkillsPage::class           => static fn( Plugin $c ): object => new SkillsPage( $c->get( SkillsManager::class ) ),
 			SettingsPage::class         => static fn(): object => new SettingsPage(),
 			Menu::class                 => static fn( Plugin $c ): object => new Menu(
-				$c->get( ProjectsPage::class ),
-				$c->get( NewProjectPage::class ),
-				$c->get( ChaptersPage::class ),
-				$c->get( ThemesPage::class ),
-				$c->get( SkillsPage::class ),
-				$c->get( SettingsPage::class )
+				static fn( string $page_class ): object => $c->get( $page_class )
 			),
 			ChaptersController::class   => static fn( Plugin $c ): object => new ChaptersController(
 				$c->get( ChapterRepository::class ),
