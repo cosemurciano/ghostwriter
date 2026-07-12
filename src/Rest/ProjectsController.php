@@ -447,12 +447,17 @@ final class ProjectsController {
 				$config['ai']['auto_advance'] = (bool) $ai['auto_advance'];
 			}
 			foreach ( array( 'provider', 'model', 'image_provider', 'image_model' ) as $key ) {
-				if ( array_key_exists( $key, $ai ) ) {
-					if ( '' === (string) $ai[ $key ] ) {
+				if ( ! array_key_exists( $key, $ai ) ) {
+					continue;
+				}
+				if ( '' === (string) $ai[ $key ] ) {
+					// provider e model sono obbligatori nello schema: un campo
+					// svuotato per sbaglio non deve far fallire il salvataggio.
+					if ( in_array( $key, array( 'image_provider', 'image_model' ), true ) ) {
 						unset( $config['ai'][ $key ] );
-					} else {
-						$config['ai'][ $key ] = (string) $ai[ $key ];
 					}
+				} else {
+					$config['ai'][ $key ] = (string) $ai[ $key ];
 				}
 			}
 		}
@@ -720,7 +725,21 @@ final class ProjectsController {
 			$dossier = $this->dossier->update(
 				$project_id,
 				static function ( array $dossier ) use ( $outline ): array {
-					$dossier['outline'] = $outline;
+					// Il form invia solo i campi editabili (titolo, brief,
+					// ordine, stato): quelli invisibili all'utente
+					// (planned_sources, parent_id, synopsis, word_count)
+					// si conservano dalla voce esistente, mai azzerati.
+					$existing = array();
+					foreach ( (array) ( $dossier['outline'] ?? array() ) as $entry ) {
+						$existing[ (int) ( $entry['chapter_id'] ?? 0 ) ] = (array) $entry;
+					}
+					foreach ( $outline as $i => $entry ) {
+						$chapter_id = (int) ( $entry['chapter_id'] ?? 0 );
+						if ( isset( $existing[ $chapter_id ] ) ) {
+							$outline[ $i ] = array_merge( $existing[ $chapter_id ], (array) $entry );
+						}
+					}
+					$dossier['outline'] = array_values( $outline );
 					return $dossier;
 				}
 			);
@@ -900,6 +919,11 @@ final class ProjectsController {
 		}
 		if ( 'pending' === $cover_state ) {
 			$this->dispatcher->dispatch( \Ghostwriter\Queue\Jobs\CoverBriefJob::class, array( 'project_id' => $project_id ) );
+			return new WP_REST_Response( array( 'queued' => true ), 202 );
+		}
+		if ( 'brief_ready' === $cover_state ) {
+			// Artwork fallito dopo i retry: si rilancia dal brief esistente.
+			$this->dispatcher->dispatch( \Ghostwriter\Queue\Jobs\CoverArtworkJob::class, array( 'project_id' => $project_id ) );
 			return new WP_REST_Response( array( 'queued' => true ), 202 );
 		}
 

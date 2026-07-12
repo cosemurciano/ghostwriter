@@ -103,7 +103,9 @@ final class RewriteBlockJob implements JobInterface {
 		);
 
 		if ( ! empty( $args['refresh_synopsis'] ) ) {
-			( $this->dispatch )( SynopsisJob::class, array( 'chapter_id' => $chapter_id, 'refresh' => true ) );
+			// project_id sempre negli args: il widget coda e "Ferma
+			// elaborazione" filtrano su quello.
+			( $this->dispatch )( SynopsisJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id, 'refresh' => true ) );
 		}
 	}
 
