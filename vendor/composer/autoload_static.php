@@ -194,6 +194,7 @@ class ComposerStaticInit732305a0cea106f701f5fa709f8e634b
         'Ghostwriter\\Queue\\Jobs\\SynopsisJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/SynopsisJob.php',
         'Ghostwriter\\Queue\\Jobs\\TranslateChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/TranslateChapterJob.php',
         'Ghostwriter\\Queue\\PipelineRouter' => __DIR__ . '/../..' . '/src/Queue/PipelineRouter.php',
+        'Ghostwriter\\Queue\\QueueStatus' => __DIR__ . '/../..' . '/src/Queue/QueueStatus.php',
         'Ghostwriter\\Rendering\\BlockRenderer' => __DIR__ . '/../..' . '/src/Rendering/BlockRenderer.php',
         'Ghostwriter\\Rendering\\BookAssembler' => __DIR__ . '/../..' . '/src/Rendering/BookAssembler.php',
         'Ghostwriter\\Rendering\\BookData' => __DIR__ . '/../..' . '/src/Rendering/BookData.php',

@@ -149,6 +149,13 @@ final class Menu {
 					'queued'   => __( 'Operazione accodata. La pagina si ricarica…', 'ghostwriter' ),
 					'error'    => __( 'Errore', 'ghostwriter' ),
 					'feedback' => __( 'Descrivi cosa non va nel blocco (il feedback guida la riscrittura):', 'ghostwriter' ),
+					'queue'    => array(
+						'running'   => __( 'in esecuzione', 'ghostwriter' ),
+						'queued'    => __( 'in coda', 'ghostwriter' ),
+						'attempt'   => __( 'tentativo %1$d di %2$d', 'ghostwriter' ),
+						'nextRun'   => __( 'prossimo passaggio alle %s', 'ghostwriter' ),
+						'lastError' => __( 'Ultimo tentativo fallito:', 'ghostwriter' ),
+					),
 				),
 			)
 		);

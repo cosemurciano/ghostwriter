@@ -12,6 +12,7 @@ use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\ExportJob;
 use Ghostwriter\Queue\Jobs\IngestSourcesJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
+use Ghostwriter\Queue\QueueStatus;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Schema\SchemaValidationException;
 use Ghostwriter\Translation\DerivedProjectFactory;
@@ -42,7 +43,9 @@ final class ProjectsController {
 		private GlossaryService $glossary,
 		private \Ghostwriter\Rendering\ThemeRegistry $themes,
 		private \Ghostwriter\Rendering\Preflight $preflight_service,
-		private SourceTester $tester
+		private SourceTester $tester,
+		private QueueStatus $queue,
+		private \Ghostwriter\Repository\LogRepository $log
 	) {
 	}
 
@@ -115,6 +118,16 @@ final class ProjectsController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'test_vector_store' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/queue',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'queue_status' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -484,6 +497,43 @@ final class ProjectsController {
 		$result = $this->tester->test_vector_store( $id, (string) ( $config['ai']['provider'] ?? 'mock' ) );
 
 		return new WP_REST_Response( array( 'ok' => $result['ok'], 'message' => ( $result['ok'] ? '✓ ' : '✗ ' ) . $result['message'] ), $result['ok'] ? 200 : 422 );
+	}
+
+	/**
+	 * Polling leggero per il widget "Lavori in corso": stato del progetto,
+	 * job attivi su Action Scheduler e ultimo evento problematico del log.
+	 */
+	public function queue_status( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$jobs = $this->queue->for_project( $project_id );
+
+		$last_issue = null;
+		foreach ( $this->log->latest( $project_id, 5 ) as $entry ) {
+			if ( in_array( (string) $entry['level'], array( 'warning', 'error' ), true ) ) {
+				$context    = is_array( $entry['context'] ) ? $entry['context'] : array();
+				$last_issue = array(
+					'event'      => (string) $entry['event'],
+					'level'      => (string) $entry['level'],
+					'created_at' => (string) $entry['created_at'],
+					'job'        => isset( $context['job'] ) ? (string) $context['job'] : null,
+					'attempt'    => isset( $context['attempt'] ) ? (int) $context['attempt'] : null,
+					'error'      => isset( $context['error'] ) ? (string) $context['error'] : null,
+				);
+				break;
+			}
+		}
+
+		return new WP_REST_Response(
+			array(
+				'state'      => $this->states->state_of( $project_id, $this->entity_type( $project_id ) ),
+				'jobs'       => $jobs,
+				'last_issue' => $last_issue,
+			)
+		);
 	}
 
 	public function propose_outline( WP_REST_Request $request ): WP_REST_Response|WP_Error {

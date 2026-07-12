@@ -39,6 +39,7 @@ use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
 use Ghostwriter\Queue\Jobs\TranslateChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
+use Ghostwriter\Queue\QueueStatus;
 use Ghostwriter\Rendering\BlockRenderer;
 use Ghostwriter\Rest\ChaptersController;
 use Ghostwriter\Rest\ProjectsController;
@@ -154,6 +155,7 @@ final class Plugin {
 				static fn( string $job_class ): object => $c->make_job( $job_class ),
 				$c->get( LogRepository::class )
 			),
+			QueueStatus::class          => static fn(): object => new QueueStatus(),
 			DerivedProjectFactory::class => static fn( Plugin $c ): object => new DerivedProjectFactory(
 				$c->get( ProjectRepository::class ),
 				$c->get( ChapterRepository::class ),
@@ -176,7 +178,9 @@ final class Plugin {
 				$c->get( GlossaryService::class ),
 				$c->get( ThemeRegistry::class ),
 				$c->get( Preflight::class ),
-				$c->get( SourceTester::class )
+				$c->get( SourceTester::class ),
+				$c->get( QueueStatus::class ),
+				$c->get( LogRepository::class )
 			),
 			ProjectsPage::class         => static fn( Plugin $c ): object => new ProjectsPage(
 				$c->get( ProjectRepository::class ),
@@ -185,7 +189,8 @@ final class Plugin {
 				$c->get( UsageMeter::class ),
 				$c->get( ThemeRegistry::class ),
 				$c->get( LogRepository::class ),
-				$c->get( SkillsManager::class )
+				$c->get( SkillsManager::class ),
+				$c->get( QueueStatus::class )
 			),
 			NewProjectPage::class       => static fn(): object => new NewProjectPage(),
 			ChaptersPage::class         => static fn( Plugin $c ): object => new ChaptersPage(

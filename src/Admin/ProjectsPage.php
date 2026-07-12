@@ -7,6 +7,7 @@ use Ghostwriter\Ai\SkillsManager;
 use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Jobs\ExportJob;
+use Ghostwriter\Queue\QueueStatus;
 use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\ChapterRepository;
 use Ghostwriter\Repository\LogRepository;
@@ -26,7 +27,8 @@ final class ProjectsPage {
 		private UsageMeter $meter,
 		private ThemeRegistry $themes,
 		private LogRepository $log,
-		private SkillsManager $skills
+		private SkillsManager $skills,
+		private QueueStatus $queue
 	) {
 	}
 
@@ -185,7 +187,16 @@ final class ProjectsPage {
 			return;
 		}
 
-		$all_phases = array( 'outline', 'draft', 'review', 'images', 'cover', 'translation', 'glossary', 'export' );
+		$all_phases = array(
+			'outline'     => __( 'Indice', 'ghostwriter' ),
+			'draft'       => __( 'Stesura', 'ghostwriter' ),
+			'review'      => __( 'Revisione', 'ghostwriter' ),
+			'images'      => __( 'Immagini', 'ghostwriter' ),
+			'cover'       => __( 'Copertina', 'ghostwriter' ),
+			'translation' => __( 'Traduzione', 'ghostwriter' ),
+			'glossary'    => __( 'Glossario', 'ghostwriter' ),
+			'export'      => __( 'Export', 'ghostwriter' ),
+		);
 
 		echo '<p class="gw-muted">' . esc_html__( 'Spunta le skill da usare per questo progetto e le fasi della pipeline in cui montarle: ogni chiamata AI carica solo le skill della propria fase (controllo costi).', 'ghostwriter' ) . '</p>';
 		echo '<form data-gw-form="PUT /projects/' . $project_id . '/settings" data-gw-transform="projectSkills">';
@@ -210,8 +221,8 @@ final class ProjectsPage {
 			echo '<td><strong>' . esc_html( $meta['name'] ) . '</strong><br/><span class="gw-muted">' . esc_html( $skill_id . ' · v' . $version ) . '</span></td>';
 			echo '<td>' . esc_html( wp_trim_words( $meta['description'], 30 ) ) . '</td>';
 			echo '<td>';
-			foreach ( $all_phases as $phase ) {
-				echo '<label class="gw-phase-check"><input type="checkbox" name="phase" value="' . esc_attr( $phase ) . '"' . checked( in_array( $phase, $phases, true ), true, false ) . '/> ' . esc_html( $phase ) . '</label>';
+			foreach ( $all_phases as $phase => $phase_label ) {
+				echo '<label class="gw-phase-check"><input type="checkbox" name="phase" value="' . esc_attr( $phase ) . '"' . checked( in_array( $phase, $phases, true ), true, false ) . '/> ' . esc_html( $phase_label ) . '</label>';
 			}
 			echo '</td></tr>';
 		}
@@ -344,6 +355,29 @@ final class ProjectsPage {
 		}
 
 		echo '</div>';
+
+		$this->render_queue_widget( $project_id, $state );
+	}
+
+	/**
+	 * Widget "Lavori in corso": fotografia live della coda del progetto,
+	 * aggiornata via polling (GET /projects/{id}/queue) da gw-admin.js, che
+	 * ricarica la pagina quando lo stato cambia o i job finiscono.
+	 */
+	private function render_queue_widget( int $project_id, string $state ): void {
+		$jobs = $this->queue->for_project( $project_id );
+
+		echo '<div class="gw-queue" data-gw-queue data-gw-project="' . $project_id . '" data-gw-state="' . esc_attr( $state ) . '"'
+			. ( empty( $jobs ) ? ' style="display:none"' : '' ) . '>';
+		echo '<span class="spinner is-active"></span><div class="gw-queue-body">';
+		foreach ( $jobs as $job ) {
+			echo '<p class="gw-queue-job"><strong>' . esc_html( $job['label'] ) . '</strong> — '
+				. esc_html( 'in-progress' === $job['status'] ? __( 'in esecuzione', 'ghostwriter' ) : __( 'in coda', 'ghostwriter' ) )
+				. ( $job['attempt'] > 1 ? esc_html( sprintf( __( ' · tentativo %1$d di %2$d', 'ghostwriter' ), $job['attempt'], QueueStatus::MAX_ATTEMPTS ) ) : '' )
+				. ( $job['next_run'] ? esc_html( sprintf( __( ' · prossimo passaggio alle %s', 'ghostwriter' ), $job['next_run'] ) ) : '' )
+				. '</p>';
+		}
+		echo '</div></div>';
 	}
 
 	// ------------------------------------------------------------------ //
@@ -689,8 +723,12 @@ final class ProjectsPage {
 			echo '<ul class="gw-log">';
 			foreach ( $entries as $entry ) {
 				$context = is_array( $entry['context'] ) ? $entry['context'] : array();
-				echo '<li class="gw-log-' . esc_attr( (string) $entry['level'] ) . '"><code>' . esc_html( (string) $entry['event'] ) . '</code>'
-					. ( isset( $context['job'] ) ? ' <span class="gw-muted">(' . esc_html( (string) $context['job'] ) . ')</span>' : '' )
+				$event   = (string) $entry['event'];
+
+				echo '<li class="gw-log-' . esc_attr( (string) $entry['level'] ) . '" title="' . esc_attr( $event ) . '">'
+					. '<strong>' . esc_html( self::event_label( $event ) ) . '</strong>'
+					. ( isset( $context['job'] ) ? ' <span class="gw-muted">— ' . esc_html( QueueStatus::job_label( (string) $context['job'] ) ) . '</span>' : '' )
+					. ( isset( $context['attempt'] ) ? ' <span class="gw-muted">' . esc_html( sprintf( __( '· tentativo %1$d di %2$d', 'ghostwriter' ), (int) $context['attempt'], QueueStatus::MAX_ATTEMPTS ) ) . '</span>' : '' )
 					. '<span class="gw-muted"> · ' . esc_html( (string) $entry['created_at'] ) . '</span>';
 				if ( isset( $context['error'] ) && '' !== (string) $context['error'] ) {
 					echo '<br/><span class="gw-log-detail">' . esc_html( (string) $context['error'] ) . '</span>';
@@ -703,6 +741,44 @@ final class ProjectsPage {
 	}
 
 	// ------------------------------------------------------------------ //
+
+	/**
+	 * Descrizione italiana degli eventi del log pipeline (il codice evento
+	 * originale resta nel title dell'elemento).
+	 */
+	private static function event_label( string $event ): string {
+		return match ( $event ) {
+			'job_dispatched'          => __( 'Lavoro accodato', 'ghostwriter' ),
+			'job_attempt_failed'      => __( 'Tentativo fallito: nuovo tentativo automatico', 'ghostwriter' ),
+			'job_failed'              => __( 'Lavoro fallito: tentativi esauriti', 'ghostwriter' ),
+			'state_changed'           => __( 'Cambio di stato', 'ghostwriter' ),
+			'outline_proposed'        => __( 'Indice proposto', 'ghostwriter' ),
+			'outline_approved'        => __( 'Indice approvato', 'ghostwriter' ),
+			'outline_proposal_failed' => __( 'Proposta indice fallita', 'ghostwriter' ),
+			'glossary_proposed'       => __( 'Glossario proposto', 'ghostwriter' ),
+			'glossary_approved'       => __( 'Glossario approvato', 'ghostwriter' ),
+			'glossary_proposal_failed' => __( 'Proposta glossario fallita', 'ghostwriter' ),
+			'sources_ingest_started'  => __( 'Ingestione fonti avviata', 'ghostwriter' ),
+			'source_ingested'         => __( 'Fonte acquisita', 'ghostwriter' ),
+			'source_ingest_failed'    => __( 'Acquisizione fonte fallita', 'ghostwriter' ),
+			'chapter_indexed'         => __( 'Capitolo indicizzato (RAG)', 'ghostwriter' ),
+			'chapter_index_failed'    => __( 'Indicizzazione capitolo fallita', 'ghostwriter' ),
+			'image_generated'         => __( 'Immagine generata', 'ghostwriter' ),
+			'cover_approved'          => __( 'Copertina approvata', 'ghostwriter' ),
+			'cover_brief_failed'      => __( 'Copertina: brief fallito', 'ghostwriter' ),
+			'cover_artwork_failed'    => __( 'Copertina: artwork fallito', 'ghostwriter' ),
+			'cover_compose_failed'    => __( 'Copertina: composizione fallita', 'ghostwriter' ),
+			'export_completed'        => __( 'Export completato', 'ghostwriter' ),
+			'export_failed'           => __( 'Export fallito', 'ghostwriter' ),
+			'budget_exceeded'         => __( 'Budget superato: pipeline in pausa', 'ghostwriter' ),
+			'budget_still_exceeded'   => __( 'Budget ancora superato', 'ghostwriter' ),
+			'budget_resumed'          => __( 'Pipeline ripresa dopo pausa budget', 'ghostwriter' ),
+			'translation_started'     => __( 'Traduzione avviata', 'ghostwriter' ),
+			'chapters_translated'     => __( 'Capitoli tradotti', 'ghostwriter' ),
+			'translation_completed'   => __( 'Traduzione completata', 'ghostwriter' ),
+			default                   => $event,
+		};
+	}
 
 	private function state_badge( string $state ): string {
 		return '<span class="gw-state gw-state-' . esc_attr( $state ) . '">' . esc_html( $state ) . '</span>';
