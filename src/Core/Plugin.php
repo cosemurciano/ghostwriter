@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Core;
 
+use Ghostwriter\Admin\ChapterEditor;
 use Ghostwriter\Admin\ChaptersPage;
 use Ghostwriter\Admin\Menu;
 use Ghostwriter\Admin\NewProjectPage;
@@ -180,7 +181,8 @@ final class Plugin {
 				$c->get( Preflight::class ),
 				$c->get( SourceTester::class ),
 				$c->get( QueueStatus::class ),
-				$c->get( LogRepository::class )
+				$c->get( LogRepository::class ),
+				$c->get( PipelineRouter::class )
 			),
 			ProjectsPage::class         => static fn( Plugin $c ): object => new ProjectsPage(
 				$c->get( ProjectRepository::class ),
@@ -206,7 +208,11 @@ final class Plugin {
 			ChaptersController::class   => static fn( Plugin $c ): object => new ChaptersController(
 				$c->get( ChapterRepository::class ),
 				$c->get( BlockRevisionService::class ),
-				$c->get( StateMachine::class )
+				$c->get( StateMachine::class ),
+				$c->get( Dispatcher::class )
+			),
+			ChapterEditor::class        => static fn( Plugin $c ): object => new ChapterEditor(
+				$c->get( ChapterRepository::class )
 			),
 			RegistryController::class   => static fn( Plugin $c ): object => new RegistryController(
 				$c->get( ThemeRegistry::class ),
@@ -295,6 +301,10 @@ final class Plugin {
 				$this->get( RegistryController::class )->register_routes();
 			}
 		);
+
+		// Sempre registrato (non solo in admin): la proiezione HTML del
+		// capitolo si aggiorna anche quando a salvare è un job in coda.
+		$this->get( ChapterEditor::class )->register();
 
 		if ( is_admin() ) {
 			$this->get( Menu::class )->register();

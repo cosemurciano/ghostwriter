@@ -76,10 +76,48 @@ class ChapterRepository {
 	 * @param array<string, mixed> $content Formato intermedio completo.
 	 */
 	public function save_content( int $chapter_id, array $content ): void {
+		$content = self::normalize_content( $content );
 		$this->validator->validate( $content, SchemaValidator::CHAPTER_CONTENT );
 		update_post_meta( $chapter_id, self::META_CONTENT, $content );
 
 		do_action( 'gw_chapter_content_saved', $chapter_id, $content );
+	}
+
+	/**
+	 * Ripara la degradazione JSON degli oggetti vuoti: un "props": {} del
+	 * provider, decodificato come array associativo, diventa array() e
+	 * ri-serializzato torna [] — che NON valida contro "type": "object".
+	 * Le props vuote (legittime, es. separatore) diventano stdClass così la
+	 * validazione e il salvataggio conservano {}.
+	 *
+	 * @param array<string, mixed> $content Formato intermedio.
+	 * @return array<string, mixed>
+	 */
+	public static function normalize_content( array $content ): array {
+		if ( isset( $content['blocks'] ) && is_array( $content['blocks'] ) ) {
+			$content['blocks'] = array_map( array( self::class, 'normalize_block' ), array_values( $content['blocks'] ) );
+		}
+		if ( isset( $content['meta'] ) && array() === $content['meta'] ) {
+			unset( $content['meta'] );
+		}
+		if ( isset( $content['meta']['epigraph'] ) && array() === $content['meta']['epigraph'] ) {
+			$content['meta']['epigraph'] = null;
+		}
+		return $content;
+	}
+
+	/**
+	 * @param array<string, mixed> $block Blocco del formato intermedio.
+	 * @return array<string, mixed>
+	 */
+	public static function normalize_block( array $block ): array {
+		if ( ! isset( $block['props'] ) || array() === $block['props'] ) {
+			$block['props'] = new \stdClass();
+		} elseif ( is_array( $block['props'] ) && isset( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
+			// Blocchi annidati (box_approfondimento): stessa cura ricorsiva.
+			$block['props']['blocks'] = array_map( array( self::class, 'normalize_block' ), array_values( $block['props']['blocks'] ) );
+		}
+		return $block;
 	}
 
 	/**

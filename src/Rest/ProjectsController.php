@@ -12,6 +12,7 @@ use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\ExportJob;
 use Ghostwriter\Queue\Jobs\IngestSourcesJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
+use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Queue\QueueStatus;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Schema\SchemaValidationException;
@@ -45,7 +46,8 @@ final class ProjectsController {
 		private \Ghostwriter\Rendering\Preflight $preflight_service,
 		private SourceTester $tester,
 		private QueueStatus $queue,
-		private \Ghostwriter\Repository\LogRepository $log
+		private \Ghostwriter\Repository\LogRepository $log,
+		private PipelineRouter $router
 	) {
 	}
 
@@ -128,6 +130,26 @@ final class ProjectsController {
 			array(
 				'methods'             => 'GET',
 				'callback'            => $this->guarded( 'queue_status' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/pipeline/stop',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'stop_pipeline' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/pipeline/resume',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'resume_pipeline' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -411,6 +433,9 @@ final class ProjectsController {
 
 		$ai = $request->get_param( 'ai' );
 		if ( is_array( $ai ) ) {
+			if ( array_key_exists( 'auto_advance', $ai ) ) {
+				$config['ai']['auto_advance'] = (bool) $ai['auto_advance'];
+			}
 			foreach ( array( 'provider', 'model', 'image_provider', 'image_model' ) as $key ) {
 				if ( array_key_exists( $key, $ai ) ) {
 					if ( '' === (string) $ai[ $key ] ) {
@@ -553,6 +578,42 @@ final class ProjectsController {
 		$this->dispatcher->dispatch( ProposeOutlineJob::class, array( 'project_id' => $project_id ) );
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Stop richiesto dall'utente: flag sul progetto (il router non accoda
+	 * più nulla) + cancellazione dei job in coda. I job già in esecuzione
+	 * terminano il passo corrente e si fermano lì.
+	 */
+	public function stop_pipeline( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		update_post_meta( $project_id, PipelineRouter::META_STOPPED, '1' );
+		$cancelled = $this->queue->cancel_for_project( $project_id );
+
+		$this->log->log( $project_id, null, \Ghostwriter\Repository\LogRepository::LEVEL_INFO, 'pipeline_stopped', array( 'cancelled_jobs' => $cancelled ) );
+
+		return new WP_REST_Response( array( 'stopped' => true, 'cancelled_jobs' => $cancelled ) );
+	}
+
+	/**
+	 * Ripresa dopo lo stop: rimuove il flag e ri-innesca i passi rimasti a
+	 * metà (i job sono idempotenti).
+	 */
+	public function resume_pipeline( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		delete_post_meta( $project_id, PipelineRouter::META_STOPPED );
+		$this->log->log( $project_id, null, \Ghostwriter\Repository\LogRepository::LEVEL_INFO, 'pipeline_resumed', array() );
+		$this->router->kick( $project_id );
+
+		return new WP_REST_Response( array( 'resumed' => true ) );
 	}
 
 	/**

@@ -93,7 +93,7 @@ final class DraftChapterJob implements JobInterface {
 				$result->output_tokens
 			);
 
-			$content               = $result->content;
+			$content               = ChapterRepository::normalize_content( $result->content );
 			$content['chapter_id'] = $chapter_id; // L'ID lo decide il sistema, mai il modello.
 
 			$errors = $this->validator->get_validation_errors( $content, SchemaValidator::CHAPTER_CONTENT );

@@ -116,7 +116,7 @@ final class TranslateChapterJob implements JobInterface {
 				$result->output_tokens
 			);
 
-			$translated               = $result->content;
+			$translated               = ChapterRepository::normalize_content( $result->content );
 			$translated['chapter_id'] = $chapter_id;
 
 			$errors = $this->validator->get_validation_errors( $translated, SchemaValidator::CHAPTER_CONTENT );

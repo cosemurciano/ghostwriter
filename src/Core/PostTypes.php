@@ -38,10 +38,17 @@ final class PostTypes {
 				'labels'          => array(
 					'name'          => __( 'Capitoli Ghostwriter', 'ghostwriter' ),
 					'singular_name' => __( 'Capitolo', 'ghostwriter' ),
+					'edit_item'     => __( 'Modifica capitolo', 'ghostwriter' ),
 				),
 				'public'          => false,
-				'show_ui'         => false,
-				'show_in_rest'    => false,
+				// Editor classico di WordPress (titolo, contenuto, media): il
+				// salvataggio riconverte l'HTML nel formato intermedio a blocchi.
+				// show_in_rest=false → niente Gutenberg: l'HTML del classico è
+				// la proiezione affidabile per il round-trip.
+				'show_ui'            => true,
+				'show_in_menu'       => false,
+				'show_in_admin_bar'  => false,
+				'show_in_rest'       => false,
 				// Gerarchia parte/capitolo/sottocapitolo via post_parent, ordine via menu_order.
 				'hierarchical'    => true,
 				'supports'        => array( 'title', 'editor', 'page-attributes' ),

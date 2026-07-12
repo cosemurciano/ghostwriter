@@ -18,13 +18,53 @@ final class QueueStatus {
 	/** @var callable(array<string, mixed>): array<int, object> */
 	private $query;
 
-	public function __construct( ?callable $query = null ) {
-		$this->query = $query ?? static function ( array $args ): array {
+	/** @var callable(int): void */
+	private $cancel;
+
+	public function __construct( ?callable $query = null, ?callable $cancel = null ) {
+		$this->query  = $query ?? static function ( array $args ): array {
 			if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
 				return array();
 			}
 			return (array) \as_get_scheduled_actions( $args, OBJECT );
 		};
+		$this->cancel = $cancel ?? static function ( int $action_id ): void {
+			if ( class_exists( \ActionScheduler::class ) ) {
+				\ActionScheduler::store()->cancel_action( $action_id );
+			}
+		};
+	}
+
+	/**
+	 * Cancella tutti i job Ghostwriter in coda per il progetto (quelli già
+	 * in esecuzione terminano il loro passo). Ritorna quanti ne ha cancellati.
+	 */
+	public function cancel_for_project( int $project_id ): int {
+		$actions = ( $this->query )(
+			array(
+				'group'    => Dispatcher::GROUP,
+				'status'   => 'pending',
+				'per_page' => 200,
+			)
+		);
+
+		$cancelled = 0;
+		foreach ( $actions as $action_id => $action ) {
+			if ( ! is_object( $action ) || ! method_exists( $action, 'get_hook' ) || ! method_exists( $action, 'get_args' ) ) {
+				continue;
+			}
+			if ( ! str_starts_with( (string) $action->get_hook(), 'gw_job_' ) ) {
+				continue;
+			}
+			$wrapped = (array) $action->get_args();
+			if ( (int) ( ( (array) ( $wrapped[0] ?? array() ) )['project_id'] ?? 0 ) !== $project_id ) {
+				continue;
+			}
+			( $this->cancel )( (int) $action_id );
+			++$cancelled;
+		}
+
+		return $cancelled;
 	}
 
 	/**
