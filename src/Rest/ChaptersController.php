@@ -98,6 +98,16 @@ final class ChaptersController {
 
 		register_rest_route(
 			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/complete',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'complete' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
 			'/chapters/(?P<id>\d+)/retry',
 			array(
 				'methods'             => 'POST',
@@ -317,6 +327,30 @@ final class ChaptersController {
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Capitolo scritto a mano dichiarato pronto: entra tra i completi
+	 * (progressi, indicizzazione RAG, export). Richiede contenuto salvato.
+	 */
+	public function complete( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		if ( null === $this->chapters->get_content( $chapter_id ) ) {
+			return new WP_Error( 'gw_no_content', 'Il capitolo è ancora vuoto: scrivilo nell\'editor e salva prima di segnarlo completo.', array( 'status' => 409 ) );
+		}
+
+		$state = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
+		if ( ! StateMachine::can( StateMachine::TYPE_CHAPTER, $state, 'manual_completed' ) ) {
+			return new WP_Error( 'gw_invalid_state', "Il capitolo è in stato {$state}: la chiusura manuale vale per i capitoli scritti a mano.", array( 'status' => 409 ) );
+		}
+
+		$new_state = $this->states->transition( $chapter_id, StateMachine::TYPE_CHAPTER, 'manual_completed', array( 'via' => 'rest' ) );
+
+		return new WP_REST_Response( array( 'state' => $new_state ) );
 	}
 
 	public function retry( WP_REST_Request $request ): WP_REST_Response|WP_Error {

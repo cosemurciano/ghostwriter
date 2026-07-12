@@ -352,6 +352,11 @@ final class ProjectsController {
 			return new WP_Error( 'gw_invalid_config', $e->getMessage(), array( 'status' => 422, 'errors' => $e->get_errors() ) );
 		}
 
+		// Libro manuale: niente outline AI, si passa subito alla scrittura.
+		if ( ! empty( $config['ai']['manual'] ) ) {
+			$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'manual_started', array( 'via' => 'rest_create' ) );
+		}
+
 		return new WP_REST_Response( $this->project_payload( $project_id ), 201 );
 	}
 
@@ -607,7 +612,7 @@ final class ProjectsController {
 		}
 
 		$ids = $this->projects->get_chapter_ids( $project_id );
-		if ( empty( $ids ) ) {
+		if ( empty( $ids ) && ! $this->projects->is_manual( $project_id ) ) {
 			return new WP_Error( 'gw_invalid_state', 'I capitoli nascono con l\'approvazione dell\'indice: prima di allora aggiungi la voce direttamente nella tab Indice.', array( 'status' => 409 ) );
 		}
 
@@ -962,7 +967,7 @@ final class ProjectsController {
 		$type  = $this->entity_type( $project_id );
 		$state = $this->states->state_of( $project_id, $type );
 
-		foreach ( array( 'review_completed', 'cover_approved' ) as $event ) {
+		foreach ( array( 'generation_completed', 'review_completed', 'cover_approved' ) as $event ) {
 			if ( StateMachine::can( $type, $state, $event ) ) {
 				$new_state = $this->states->transition( $project_id, $type, $event, array( 'via' => 'rest_advance' ) );
 				return new WP_REST_Response( array( 'state' => $new_state ) );

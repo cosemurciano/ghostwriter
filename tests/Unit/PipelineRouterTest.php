@@ -221,6 +221,20 @@ final class PipelineRouterTest extends TestCase {
 		self::assertSame( array(), $this->hooks() );
 	}
 
+	public function test_manual_project_never_autocloses_generation(): void {
+		// Libro manuale: la chiusura della scrittura è dell'autore, non del
+		// router — potrebbe voler aggiungere altri capitoli.
+		$this->projects_stub->config                             = array( 'ai' => array( 'manual' => true ) );
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ]     = 'complete';
+		$this->meta[ self::CH2 ][ StateMachine::META_STATE ]     = 'complete';
+		$this->meta[ self::PROJECT ][ StateMachine::META_STATE ] = 'generating';
+
+		$this->router->on_state_changed( self::CH2, 'chapter', 'revised', 'complete', 'completed' );
+
+		self::assertSame( array( 'gw_job_index_chapter' ), $this->hooks() );
+		self::assertSame( 'generating', $this->meta[ self::PROJECT ][ StateMachine::META_STATE ] );
+	}
+
 	public function test_last_chapter_complete_moves_project_to_review(): void {
 		$this->meta[ self::CH1 ][ StateMachine::META_STATE ]     = 'complete';
 		$this->meta[ self::CH2 ][ StateMachine::META_STATE ]     = 'complete';

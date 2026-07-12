@@ -93,6 +93,9 @@ final class ChapterEditor {
 		if ( PostTypes::CHAPTER !== ( get_current_screen()->post_type ?? '' ) ) {
 			return;
 		}
+		if ( $this->is_manual_chapter( (int) get_the_ID() ) ) {
+			return; // Libro manuale: le immagini si caricano da "Aggiungi media".
+		}
 		echo '<button type="button" class="button" id="gw-ai-image-open"><span class="dashicons dashicons-art" style="vertical-align:text-top"></span> '
 			. esc_html__( 'Immagine AI', 'ghostwriter' ) . '</button>';
 	}
@@ -127,7 +130,7 @@ final class ChapterEditor {
 			. '</p></div></div>';
 	}
 
-	public function register_meta_box(): void {
+	public function register_meta_box( \WP_Post $post ): void {
 		add_meta_box(
 			'gw-chapter-nav',
 			__( 'Nel libro', 'ghostwriter' ),
@@ -136,14 +139,23 @@ final class ChapterEditor {
 			'side',
 			'high'
 		);
-		add_meta_box(
-			'gw-chapter-assistant',
-			__( 'Assistente AI', 'ghostwriter' ),
-			array( $this, 'render_assistant_box' ),
-			PostTypes::CHAPTER,
-			'side',
-			'high'
-		);
+
+		// Libro manuale: nessun assistente AI, si scrive e basta.
+		if ( ! $this->is_manual_chapter( $post->ID ) ) {
+			add_meta_box(
+				'gw-chapter-assistant',
+				__( 'Assistente AI', 'ghostwriter' ),
+				array( $this, 'render_assistant_box' ),
+				PostTypes::CHAPTER,
+				'side',
+				'high'
+			);
+		}
+	}
+
+	private function is_manual_chapter( int $chapter_id ): bool {
+		$project_id = (int) get_post_meta( $chapter_id, ChapterRepository::META_PROJECT_ID, true );
+		return $project_id > 0 && $this->projects->is_manual( $project_id );
 	}
 
 	/**

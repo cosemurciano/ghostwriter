@@ -141,6 +141,7 @@
         "model": { "type": "string" },
         "image_provider": { "type": "string" },
         "image_model": { "type": "string" },
+        "manual": { "type": "boolean", "default": false, "description": "true: libro scritto interamente a mano, nessuna chiamata AI (outline, capitoli, copertina in modalità upload)" },
         "auto_advance": { "type": "boolean", "default": false, "description": "true: capitoli scritti in sequenza automatica; false (default): capitolo per capitolo, avviato dall'utente" },
         "budget": {
           "type": "object",

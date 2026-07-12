@@ -236,8 +236,12 @@ final class PipelineRouter {
 					// Ultimo capitolo: il progetto passa in revisione complessiva.
 					// Guard: un capitolo aggiunto a mano può completarsi quando il
 					// progetto è già oltre 'generating' — lì non c'è nulla da avanzare.
+					// Nei libri manuali la chiusura della scrittura è SEMPRE
+					// dell'autore (pulsante), mai automatica: potrebbe voler
+					// aggiungere altri capitoli.
 					$project_state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
-					if ( StateMachine::can( StateMachine::TYPE_PROJECT, $project_state, 'generation_completed' ) ) {
+					if ( ! $this->projects->is_manual( $project_id )
+						&& StateMachine::can( StateMachine::TYPE_PROJECT, $project_state, 'generation_completed' ) ) {
 						$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'generation_completed', array( 'router' => 'all_chapters_complete' ) );
 					}
 				} elseif ( $this->auto_advance( $project_id ) ) {

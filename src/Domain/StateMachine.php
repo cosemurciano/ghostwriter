@@ -45,6 +45,7 @@ final class StateMachine {
 			'setup'             => array(
 				'sources_ingest_started' => 'sources_ingesting',
 				'outline_proposed'       => 'outline_proposed',
+				'manual_started'         => 'generating', // Libro manuale: si scrive subito, senza outline AI.
 			),
 			'sources_ingesting' => array(
 				'outline_proposed' => 'outline_proposed',
@@ -74,10 +75,12 @@ final class StateMachine {
 		),
 		self::TYPE_CHAPTER     => array(
 			'planned'        => array(
-				'draft_started' => 'drafting',
+				'draft_started'    => 'drafting',
+				'manual_completed' => 'complete', // Scritto a mano nell'editor.
 			),
 			'drafting'       => array(
-				'draft_ready' => 'draft_ready',
+				'draft_ready'      => 'draft_ready',
+				'manual_completed' => 'complete',
 			),
 			'draft_ready'    => array(
 				'review_started'   => 'in_review',
