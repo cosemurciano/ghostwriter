@@ -38,6 +38,47 @@ final class ChapterEditor {
 		add_action( 'add_meta_boxes_' . PostTypes::CHAPTER, array( $this, 'register_meta_box' ) );
 		add_action( 'media_buttons', array( $this, 'render_image_button' ) );
 		add_action( 'admin_footer', array( $this, 'render_image_modal' ) );
+		add_filter( 'tiny_mce_before_init', array( $this, 'style_editor' ), 10, 2 );
+		add_filter( 'enter_title_here', array( $this, 'title_placeholder' ), 10, 2 );
+	}
+
+	/**
+	 * La superficie di scrittura somiglia alla pagina del libro: serif,
+	 * giustezza da lettura, figure e citazioni come appariranno. Scrivere
+	 * dentro una pagina, non dentro un form.
+	 *
+	 * @param array<string, mixed> $settings Config TinyMCE.
+	 * @return array<string, mixed>
+	 */
+	public function style_editor( array $settings, string $editor_id = '' ): array {
+		if ( 'content' !== $editor_id || PostTypes::CHAPTER !== ( get_current_screen()->post_type ?? '' ) ) {
+			return $settings;
+		}
+
+		$css = '
+			html { background: #fff; }
+			body#tinymce { font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.75; color: #1d2327; max-width: 44em; margin: 0 auto !important; padding: 24px 28px !important; }
+			body#tinymce p { margin: 0 0 1em; }
+			body#tinymce h2, body#tinymce h3, body#tinymce h4 { font-family: Georgia, serif; line-height: 1.3; margin: 1.6em 0 0.6em; }
+			body#tinymce blockquote { border-left: 3px solid #c3c4c7; margin: 1.2em 0; padding: 0.2em 0 0.2em 1.2em; font-style: italic; color: #3c434a; }
+			body#tinymce blockquote cite { display: block; font-style: normal; font-size: 0.85em; color: #646970; margin-top: 0.4em; }
+			body#tinymce figure { text-align: center; margin: 1.6em auto; }
+			body#tinymce figure img { max-width: 100%; height: auto; }
+			body#tinymce figcaption { font-size: 0.85em; font-style: italic; color: #646970; margin-top: 0.4em; }
+			body#tinymce pre { background: #f6f7f7; padding: 12px 14px; border-radius: 4px; font-size: 0.85em; overflow-x: auto; }
+			body#tinymce table { border-collapse: collapse; margin: 1.2em 0; }
+			body#tinymce table th, body#tinymce table td { border: 1px solid #c3c4c7; padding: 0.35em 0.6em; }
+			body#tinymce hr { border: none; text-align: center; margin: 2em auto; width: 30%; border-top: 1px solid #c3c4c7; }
+			body#tinymce .gw-locked-block { background: #f6f7f7; border: 1px dashed #c3c4c7; border-radius: 4px; padding: 10px 14px; color: #646970; font-family: -apple-system, sans-serif; font-size: 14px; }
+			body#tinymce .gw-figura-placeholder { border: 1px dashed #c3c4c7; border-radius: 4px; padding: 14px; color: #646970; }
+		';
+
+		$settings['content_style'] = trim( ( $settings['content_style'] ?? '' ) . ' ' . preg_replace( '/\s+/', ' ', $css ) );
+		return $settings;
+	}
+
+	public function title_placeholder( string $placeholder, \WP_Post $post ): string {
+		return PostTypes::CHAPTER === $post->post_type ? __( 'Titolo del capitolo', 'ghostwriter' ) : $placeholder;
 	}
 
 	/**
@@ -83,6 +124,14 @@ final class ChapterEditor {
 
 	public function register_meta_box(): void {
 		add_meta_box(
+			'gw-chapter-nav',
+			__( 'Nel libro', 'ghostwriter' ),
+			array( $this, 'render_nav_box' ),
+			PostTypes::CHAPTER,
+			'side',
+			'high'
+		);
+		add_meta_box(
 			'gw-chapter-assistant',
 			__( 'Assistente AI', 'ghostwriter' ),
 			array( $this, 'render_assistant_box' ),
@@ -90,6 +139,46 @@ final class ChapterEditor {
 			'side',
 			'high'
 		);
+	}
+
+	/**
+	 * Contesto e navigazione: posizione nel libro, capitolo precedente e
+	 * successivo, stato pipeline, brief. Si scrive senza uscire dal flusso.
+	 */
+	public function render_nav_box( \WP_Post $post ): void {
+		$project_id = (int) get_post_meta( $post->ID, ChapterRepository::META_PROJECT_ID, true );
+		if ( 0 === $project_id ) {
+			echo '<p class="gw-muted">' . esc_html__( 'Capitolo senza progetto.', 'ghostwriter' ) . '</p>';
+			return;
+		}
+
+		$ids      = $this->projects->get_chapter_ids( $project_id );
+		$position = array_search( $post->ID, $ids, true );
+		$total    = count( $ids );
+		$state    = (string) get_post_meta( $post->ID, \Ghostwriter\Domain\StateMachine::META_STATE, true ) ?: 'planned';
+
+		echo '<p style="margin-top:0"><strong>' . esc_html( get_the_title( $project_id ) ) . '</strong><br/>'
+			. esc_html( sprintf( /* translators: 1: posizione, 2: totale */ __( 'Capitolo %1$d di %2$d', 'ghostwriter' ), (int) $position + 1, $total ) )
+			. ' · <span class="gw-state gw-state-' . esc_attr( $state ) . '">' . esc_html( $state ) . '</span></p>';
+
+		$brief = (string) get_post_meta( $post->ID, ChapterRepository::META_BRIEF, true );
+		if ( '' !== $brief ) {
+			echo '<p class="gw-muted" style="border-left:3px solid #c3c4c7;padding-left:8px">' . esc_html( $brief ) . '</p>';
+		}
+
+		$prev = ( false !== $position && $position > 0 ) ? (int) $ids[ $position - 1 ] : 0;
+		$next = ( false !== $position && $position < $total - 1 ) ? (int) $ids[ $position + 1 ] : 0;
+
+		echo '<p>';
+		if ( $prev > 0 && get_edit_post_link( $prev ) ) {
+			echo '<a href="' . esc_url( (string) get_edit_post_link( $prev ) ) . '">← ' . esc_html( get_the_title( $prev ) ) . '</a><br/>';
+		}
+		if ( $next > 0 && get_edit_post_link( $next ) ) {
+			echo '<a href="' . esc_url( (string) get_edit_post_link( $next ) ) . '">' . esc_html( get_the_title( $next ) ) . ' →</a>';
+		}
+		echo '</p>';
+
+		echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=' . Menu::SLUG_PROJECTS . '&project=' . $project_id . '#capitoli' ) ) . '">' . esc_html__( 'Torna al progetto', 'ghostwriter' ) . '</a></p>';
 	}
 
 	/**
@@ -165,8 +254,9 @@ final class ChapterEditor {
 		$content               = EditorProjection::to_blocks( wpautop( $post->post_content ), $previous );
 		$content['chapter_id'] = $post_id;
 
-		$content['meta']          = (array) ( $content['meta'] ?? array() );
-		$content['meta']['title'] = $post->post_title;
+		$content['meta']               = (array) ( $content['meta'] ?? array() );
+		$content['meta']['title']      = $post->post_title;
+		$content['meta']['word_count'] = ChapterRepository::count_words( $content );
 
 		self::$syncing = true;
 		try {
@@ -176,7 +266,14 @@ final class ChapterEditor {
 			// (l'"Ordine" degli attributi pagina è modificabile dall'editor).
 			$project_id = $this->chapters->get_project_id( $post_id );
 			if ( $project_id > 0 && null !== $this->dossier->get( $project_id ) ) {
-				$this->dossier->update_outline_entry( $project_id, $post_id, array( 'title' => $post->post_title ) );
+				$this->dossier->update_outline_entry(
+					$project_id,
+					$post_id,
+					array(
+						'title'      => $post->post_title,
+						'word_count' => (int) $content['meta']['word_count'],
+					)
+				);
 				$this->dossier->sync_outline_order( $project_id, $this->projects->get_chapter_ids( $project_id ) );
 			}
 		} catch ( SchemaValidationException $e ) {
