@@ -338,6 +338,34 @@
 	word-break: break-word;
 }
 
+/* --- Widget "Lavori in corso" --- */
+
+.gw-queue {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #2271b1;
+	border-radius: 4px;
+	padding: 10px 14px;
+	margin: 8px 0 4px;
+}
+
+.gw-queue .spinner {
+	float: none;
+	margin: 2px 0 0;
+}
+
+.gw-queue-job {
+	margin: 0 0 4px;
+}
+
+.gw-queue-issue {
+	margin: 4px 0 0;
+	color: #d63638;
+}
+
 /* --- Tab Skills del progetto --- */
 
 .gw-phase-check {

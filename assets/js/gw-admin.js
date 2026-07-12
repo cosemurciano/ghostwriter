@@ -551,4 +551,56 @@
 		} );
 		table.appendChild( row );
 	} );
+
+	// Widget "Lavori in corso": polling di GET /projects/{id}/queue. Aggiorna
+	// la lista dei job attivi (tentativo, prossimo passaggio) e ricarica la
+	// pagina quando lo stato del progetto cambia o la coda si svuota.
+	( function () {
+		var widget = document.querySelector( '[data-gw-queue]' );
+		if ( ! widget ) {
+			return;
+		}
+		var projectId = widget.getAttribute( 'data-gw-project' );
+		var initialState = widget.getAttribute( 'data-gw-state' );
+		var hadJobs = 'none' !== widget.style.display;
+		var queueI18n = cfg.i18n.queue || {};
+
+		function jobLine( job ) {
+			var text = '<strong>' + escapeHtml( job.label ) + '</strong> — '
+				+ ( 'in-progress' === job.status ? queueI18n.running : queueI18n.queued );
+			if ( job.attempt > 1 ) {
+				text += ' · ' + ( queueI18n.attempt || '' ).replace( '%1$d', job.attempt ).replace( '%2$d', '3' );
+			}
+			if ( job.next_run ) {
+				text += ' · ' + ( queueI18n.nextRun || '' ).replace( '%s', job.next_run );
+			}
+			return '<p class="gw-queue-job">' + text + '</p>';
+		}
+
+		function poll() {
+			api( '/projects/' + projectId + '/queue' ).then( function ( data ) {
+				if ( data.state !== initialState || ( hadJobs && 0 === data.jobs.length ) ) {
+					window.location.reload();
+					return;
+				}
+				if ( 0 === data.jobs.length ) {
+					widget.style.display = 'none';
+					window.setTimeout( poll, 15000 );
+					return;
+				}
+				hadJobs = true;
+				var html = data.jobs.map( jobLine ).join( '' );
+				if ( data.last_issue && data.last_issue.error && 'job_attempt_failed' === data.last_issue.event ) {
+					html += '<p class="gw-queue-issue">' + escapeHtml( ( queueI18n.lastError || '' ) + ' ' + data.last_issue.error ) + '</p>';
+				}
+				widget.querySelector( '.gw-queue-body' ).innerHTML = html;
+				widget.style.display = '';
+				window.setTimeout( poll, 8000 );
+			} ).catch( function () {
+				window.setTimeout( poll, 30000 ); // Errore di rete: si riprova con calma.
+			} );
+		}
+
+		window.setTimeout( poll, 4000 );
+	}() );
 }() );

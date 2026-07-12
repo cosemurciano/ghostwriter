@@ -90,6 +90,7 @@ return array(
     'Ghostwriter\\Queue\\Jobs\\SynopsisJob' => $baseDir . '/src/Queue/Jobs/SynopsisJob.php',
     'Ghostwriter\\Queue\\Jobs\\TranslateChapterJob' => $baseDir . '/src/Queue/Jobs/TranslateChapterJob.php',
     'Ghostwriter\\Queue\\PipelineRouter' => $baseDir . '/src/Queue/PipelineRouter.php',
+    'Ghostwriter\\Queue\\QueueStatus' => $baseDir . '/src/Queue/QueueStatus.php',
     'Ghostwriter\\Rendering\\BlockRenderer' => $baseDir . '/src/Rendering/BlockRenderer.php',
     'Ghostwriter\\Rendering\\BookAssembler' => $baseDir . '/src/Rendering/BookAssembler.php',
     'Ghostwriter\\Rendering\\BookData' => $baseDir . '/src/Rendering/BookData.php',
