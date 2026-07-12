@@ -91,8 +91,8 @@ final class NewProjectPage {
 		echo '</table>';
 		$this->box_close();
 
-		// --- Motore AI e budget ---
-		$this->box_open( __( 'Motore AI e budget', 'ghostwriter' ) );
+		// --- Motore AI ---
+		$this->box_open( __( 'Motore AI', 'ghostwriter' ) );
 		echo '<table class="form-table" role="presentation">';
 
 		$anthropic_ok = null !== ApiKeys::anthropic();
@@ -112,11 +112,6 @@ final class NewProjectPage {
 			. '<option value="openai"' . ( $openai_ok ? '' : ' disabled' ) . '>OpenAI</option><option value="mock">mock</option></select> '
 			. '<input type="text" name="image_model" placeholder="gpt-image-1" aria-label="' . esc_attr__( 'Modello immagini', 'ghostwriter' ) . '" />',
 			__( 'Per figure, artwork di copertina. Con Claude come provider testi serve un provider immagini dedicato.', 'ghostwriter' )
-		);
-		$this->row(
-			__( 'Budget massimo', 'ghostwriter' ),
-			'<input type="number" name="max_cost_eur" min="1" step="1" placeholder="50" style="width:110px" /> €',
-			__( 'Al superamento la pipeline si ferma in paused_budget: mai job silenziosamente costosi.', 'ghostwriter' )
 		);
 		echo '</table>';
 		$this->box_close();

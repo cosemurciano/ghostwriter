@@ -144,6 +144,16 @@ final class ProjectsController {
 
 		register_rest_route(
 			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/outline/regenerate',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'regenerate_outline' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
 			'/projects/(?P<id>\d+)/outline',
 			array(
 				'methods'             => 'PUT',
@@ -301,6 +311,8 @@ final class ProjectsController {
 			return new WP_Error( 'gw_invalid_params', 'title e config sono obbligatori.', array( 'status' => 400 ) );
 		}
 
+		unset( $config['ai']['budget'] ); // Il budget massimo non esiste più.
+
 		try {
 			$project_id = $this->projects->create( $title, $config );
 			$this->dossier->initialize( $project_id, $config );
@@ -357,7 +369,7 @@ final class ProjectsController {
 	/**
 	 * Aggiorna le impostazioni del progetto (parziali). Il formato fisico e
 	 * i blocchi ammessi sono modificabili solo PRIMA della generazione
-	 * (vincolano copertina, immagini e temi); brief, motore AI e budget
+	 * (vincolano copertina, immagini e temi); brief e motore AI
 	 * sempre. La config risultante è validata contro lo schema.
 	 */
 	public function update_settings( WP_REST_Request $request ): WP_REST_Response|WP_Error {
@@ -408,15 +420,11 @@ final class ProjectsController {
 					}
 				}
 			}
-			if ( array_key_exists( 'max_cost_eur', $ai ) ) {
-				if ( null === $ai['max_cost_eur'] || '' === $ai['max_cost_eur'] ) {
-					unset( $config['ai']['budget'] );
-				} else {
-					$config['ai']['budget']                 = (array) ( $config['ai']['budget'] ?? array() );
-					$config['ai']['budget']['max_cost_eur'] = (float) $ai['max_cost_eur'];
-				}
-			}
 		}
+
+		// Il budget massimo è stato rimosso dal prodotto: ogni salvataggio
+		// ripulisce eventuali cap residui dalle config esistenti.
+		unset( $config['ai']['budget'] );
 
 		$skills = $request->get_param( 'skills' );
 		if ( is_array( $skills ) ) {
@@ -543,6 +551,33 @@ final class ProjectsController {
 		}
 
 		$this->dispatcher->dispatch( ProposeOutlineJob::class, array( 'project_id' => $project_id ) );
+
+		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Rigenerazione dell'indice proposto: l'AI lo ricrea tenendo intatti i
+	 * capitoli contrassegnati (keep = indici 0-based), guidata dal feedback.
+	 */
+	public function regenerate_outline( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		if ( 'outline_proposed' !== $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT ) ) {
+			return new WP_Error( 'gw_invalid_state', 'L\'indice si può rigenerare solo quando è proposto e non ancora approvato.', array( 'status' => 409 ) );
+		}
+
+		$this->dispatcher->dispatch(
+			ProposeOutlineJob::class,
+			array(
+				'project_id' => $project_id,
+				'regenerate' => true,
+				'keep'       => array_values( array_map( 'intval', (array) $request->get_param( 'keep' ) ) ),
+				'feedback'   => sanitize_textarea_field( (string) $request->get_param( 'feedback' ) ),
+			)
+		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
 	}
@@ -799,9 +834,15 @@ final class ProjectsController {
 		if ( ! $this->projects->exists( $project_id ) ) {
 			return self::not_found();
 		}
-		if ( ! $this->meter->within_budget( $project_id ) ) {
-			return new WP_Error( 'gw_budget_still_exceeded', 'Il budget risulta ancora superato: alzare i limiti nella config prima di riprendere.', array( 'status' => 409 ) );
+
+		// Il budget massimo non esiste più: la ripresa rimuove il cap
+		// residuo dalla config, così il meter non rimette in pausa.
+		$config = $this->projects->get_config( $project_id );
+		if ( isset( $config['ai']['budget'] ) ) {
+			unset( $config['ai']['budget'] );
+			$this->projects->save_config( $project_id, $config );
 		}
+
 		return $this->transition_endpoint( $project_id, 'budget_resumed' );
 	}
 

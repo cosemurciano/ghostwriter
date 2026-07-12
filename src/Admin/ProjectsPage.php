@@ -89,8 +89,8 @@ final class ProjectsPage {
 			. '</p>';
 
 		if ( 'paused_budget' === $state ) {
-			echo '<div class="notice notice-error inline"><p><strong>' . esc_html__( 'Budget superato: pipeline in pausa.', 'ghostwriter' ) . '</strong> '
-				. esc_html__( 'Alza il budget nella config o riprendi dopo verifica.', 'ghostwriter' )
+			echo '<div class="notice notice-error inline"><p><strong>' . esc_html__( 'Pipeline in pausa per un vecchio limite di budget.', 'ghostwriter' ) . '</strong> '
+				. esc_html__( 'Il budget massimo non esiste più: riprendendo, il limite residuo viene rimosso.', 'ghostwriter' )
 				. ' <button class="button button-small" data-gw-action="POST /projects/' . $project_id . '/budget/resume" data-gw-confirm>' . esc_html__( 'Riprendi', 'ghostwriter' ) . '</button></p></div>';
 		}
 
@@ -235,7 +235,7 @@ final class ProjectsPage {
 
 	/**
 	 * Impostazioni del progetto: tutti i campi della config, raggruppati con
-	 * logica (contenuto → formato → struttura → motore AI e budget). Formato
+	 * logica (contenuto → formato → struttura → motore AI). Formato
 	 * e blocchi si bloccano quando la generazione è partita.
 	 *
 	 * @param array<string, mixed> $config Config progetto.
@@ -281,7 +281,7 @@ final class ProjectsPage {
 		echo '</table>';
 		$this->box_close();
 
-		$this->box_open( esc_html__( 'Motore AI e budget', 'ghostwriter' ) );
+		$this->box_open( esc_html__( 'Motore AI', 'ghostwriter' ) );
 		echo '<table class="form-table" role="presentation">';
 		echo '<tr><th>' . esc_html__( 'Provider e modello', 'ghostwriter' ) . '</th><td><select name="provider">';
 		foreach ( array( 'anthropic' => 'Anthropic (Claude)', 'openai' => 'OpenAI', 'mock' => 'Mock (senza AI)' ) as $value => $label ) {
@@ -294,8 +294,6 @@ final class ProjectsPage {
 			. '<option value="openai"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'openai', false ) . '>OpenAI</option>'
 			. '<option value="mock"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'mock', false ) . '>mock</option>'
 			. '</select> <input type="text" name="image_model" value="' . esc_attr( (string) ( $ai['image_model'] ?? '' ) ) . '" placeholder="gpt-image-1"/></td></tr>';
-		echo '<tr><th>' . esc_html__( 'Budget massimo', 'ghostwriter' ) . '</th><td><input type="number" name="max_cost_eur" min="1" step="1" value="' . esc_attr( (string) ( $ai['budget']['max_cost_eur'] ?? '' ) ) . '" style="width:110px"/> €'
-			. '<p class="description">' . esc_html__( 'Vuoto = nessun limite. Al superamento la pipeline si ferma in paused_budget.', 'ghostwriter' ) . '</p></td></tr>';
 		echo '</table>';
 		$this->box_close();
 
@@ -409,7 +407,7 @@ final class ProjectsPage {
 
 		if ( $editable ) {
 			echo '<form data-gw-form="PUT /projects/' . $project_id . '/outline" data-gw-transform="outline">';
-			echo '<p class="gw-muted">' . esc_html__( 'Modifica titoli e brief prima di approvare: dopo, i capitoli vengono materializzati.', 'ghostwriter' ) . '</p>';
+			echo '<p class="gw-muted">' . esc_html__( 'Modifica titoli e brief prima di approvare: dopo, i capitoli vengono materializzati. Se l\'indice non convince, spunta "Mantieni" sui capitoli che vanno bene e rigenera gli altri con l\'AI qui sotto.', 'ghostwriter' ) . '</p>';
 		}
 		echo '<table class="widefat striped gw-clean-table"><tbody>';
 		$n = 0;
@@ -421,6 +419,7 @@ final class ProjectsPage {
 					. '<td class="gw-outline-n">' . $n . '</td><td>'
 					. '<input type="text" name="title" value="' . esc_attr( (string) ( $entry['title'] ?? '' ) ) . '" placeholder="' . esc_attr__( 'Titolo del capitolo', 'ghostwriter' ) . '" />'
 					. '<textarea name="brief" rows="2" placeholder="' . esc_attr__( 'Obiettivo del capitolo (2-3 frasi)', 'ghostwriter' ) . '">' . esc_textarea( (string) ( $entry['brief'] ?? '' ) ) . '</textarea>'
+					. '</td><td class="gw-outline-keep"><label title="' . esc_attr__( 'La rigenerazione AI non tocca questo capitolo', 'ghostwriter' ) . '"><input type="checkbox" name="keep"/> ' . esc_html__( 'Mantieni', 'ghostwriter' ) . '</label>'
 					. '</td></tr>';
 			} else {
 				echo '<tr><td class="gw-outline-n">' . $n . '</td><td><strong>' . esc_html( (string) ( $entry['title'] ?? '' ) ) . '</strong> ' . $this->state_badge( (string) ( $entry['status'] ?? '' ) )
@@ -431,7 +430,17 @@ final class ProjectsPage {
 		}
 		echo '</tbody></table>';
 		if ( $editable ) {
-			echo '<p><button class="button button-primary">' . esc_html__( 'Salva modifiche all\'indice', 'ghostwriter' ) . '</button></p></form>';
+			echo '<p><button class="button button-primary">' . esc_html__( 'Salva modifiche all\'indice', 'ghostwriter' ) . '</button></p>';
+
+			echo '<fieldset class="gw-regen">'
+				. '<legend><strong>' . esc_html__( 'Non convince? Rigenera con l\'AI', 'ghostwriter' ) . '</strong></legend>'
+				. '<p class="gw-muted">' . esc_html__( 'I capitoli con "Mantieni" spuntato restano identici; gli altri vengono riproposti da zero (numero e ordine possono cambiare). Descrivi cosa non va per guidare la rigenerazione.', 'ghostwriter' ) . '</p>'
+				. '<textarea name="regen_feedback" rows="2" class="large-text" placeholder="' . esc_attr__( 'Es.: troppi capitoli introduttivi, servono più casi pratici nella seconda metà…', 'ghostwriter' ) . '"></textarea>'
+				. '<p><button type="submit" class="button" data-gw-alt-form="POST /projects/' . $project_id . '/outline/regenerate" data-gw-alt-transform="regenerateOutline" data-gw-confirm>'
+				. esc_html__( 'Rigenera indice (AI)', 'ghostwriter' ) . '</button></p>'
+				. '</fieldset>';
+
+			echo '</form>';
 		}
 		$this->box_close();
 	}

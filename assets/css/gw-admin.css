@@ -338,6 +338,25 @@
 	word-break: break-word;
 }
 
+/* --- Indice: rigenerazione AI --- */
+
+.gw-outline-keep {
+	white-space: nowrap;
+	width: 110px;
+	vertical-align: middle !important;
+}
+
+.gw-regen {
+	border: 1px dashed #c3c4c7;
+	border-radius: 4px;
+	padding: 10px 14px;
+	margin-top: 14px;
+}
+
+.gw-regen textarea {
+	margin-top: 6px;
+}
+
 /* --- Widget "Lavori in corso" --- */
 
 .gw-queue {
