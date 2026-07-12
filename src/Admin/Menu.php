@@ -23,14 +23,24 @@ final class Menu {
 	/** @var string[] Hook suffix delle nostre pagine (per gli assets). */
 	private array $hooks = array();
 
-	public function __construct(
-		private ProjectsPage $projects,
-		private NewProjectPage $new_project,
-		private ChaptersPage $chapters,
-		private ThemesPage $themes,
-		private SkillsPage $skills,
-		private SettingsPage $settings
-	) {
+	/** @var callable(class-string): object */
+	private $resolve;
+
+	/**
+	 * Le pagine si risolvono SOLO dentro i callback (lazy): costruirle su
+	 * plugins_loaded è vietato — WP_List_Table & co. richiedono gli include
+	 * admin, non ancora caricati (500 altrimenti).
+	 *
+	 * @param callable(class-string): object $resolve Risolve una pagina dal container.
+	 */
+	public function __construct( callable $resolve ) {
+		$this->resolve = $resolve;
+	}
+
+	private function page_callback( string $page_class ): callable {
+		return function () use ( $page_class ): void {
+			( $this->resolve )( $page_class )->render();
+		};
 	}
 
 	public function register(): void {
@@ -44,7 +54,7 @@ final class Menu {
 			__( 'Ghostwriter', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_PROJECTS,
-			array( $this->projects, 'render' ),
+			$this->page_callback( ProjectsPage::class ),
 			'dashicons-book-alt',
 			26
 		);
@@ -55,7 +65,7 @@ final class Menu {
 			__( 'Progetti', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_PROJECTS,
-			array( $this->projects, 'render' )
+			$this->page_callback( ProjectsPage::class )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -64,7 +74,7 @@ final class Menu {
 			__( 'Aggiungi progetto', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_NEW,
-			array( $this->new_project, 'render' )
+			$this->page_callback( NewProjectPage::class )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -73,7 +83,7 @@ final class Menu {
 			__( 'Capitoli', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_CHAPTERS,
-			array( $this->chapters, 'render' )
+			$this->page_callback( ChaptersPage::class )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -82,7 +92,7 @@ final class Menu {
 			__( 'Temi', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_THEMES,
-			array( $this->themes, 'render' )
+			$this->page_callback( ThemesPage::class )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -91,7 +101,7 @@ final class Menu {
 			__( 'Skills', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
 			self::SLUG_SKILLS,
-			array( $this->skills, 'render' )
+			$this->page_callback( SkillsPage::class )
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -100,7 +110,7 @@ final class Menu {
 			__( 'Impostazioni', 'ghostwriter' ),
 			Capabilities::MANAGE_SETTINGS,
 			self::SLUG_SETTINGS,
-			array( $this->settings, 'render' )
+			$this->page_callback( SettingsPage::class )
 		);
 	}
 
