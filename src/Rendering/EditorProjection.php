@@ -152,6 +152,24 @@ final class EditorProjection {
 
 		$blocks = array();
 		foreach ( self::top_level_elements( $html ) as $node ) {
+			// Un <p> con testo E immagini (media inserito col cursore nel
+			// paragrafo) si scompone: prima le figure, poi il paragrafo.
+			// Nessun contenuto deve sparire in silenzio.
+			if ( 'p' === strtolower( $node->tagName ) ) {
+				$imgs = iterator_to_array( $node->getElementsByTagName( 'img' ) );
+				$text = self::inline_md( $node );
+				if ( count( $imgs ) > 0 && '' !== trim( $text ) ) {
+					foreach ( $imgs as $img ) {
+						$figura = self::img_to_figura( $img, $prev_blocks, (string) $img->getAttribute( 'data-gw-id' ) );
+						if ( null !== $figura ) {
+							$blocks[] = $figura;
+						}
+					}
+					$blocks[] = self::finalize_block( 'paragrafo', array( 'text' => $text ), $prev_blocks, (string) $node->getAttribute( 'data-gw-id' ) );
+					continue;
+				}
+			}
+
 			$block = self::element_to_block( $node, $prev_blocks );
 			if ( null !== $block ) {
 				$blocks[] = $block;

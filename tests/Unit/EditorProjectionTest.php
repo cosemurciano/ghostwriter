@@ -77,6 +77,20 @@ final class EditorProjectionTest extends TestCase {
 		self::assertSame( $original['notes'], $roundtrip['notes'] );
 	}
 
+	public function test_image_inside_text_paragraph_is_split_not_lost(): void {
+		// "Aggiungi media" col cursore in mezzo al paragrafo: TinyMCE mette
+		// l'img DENTRO il <p> col testo. Niente deve sparire.
+		$html = '<p>Prima parte del testo <img class="wp-image-77" src="https://example.test/x.jpg" alt="scorcio"/> e seconda parte.</p>';
+
+		$blocks = EditorProjection::to_blocks( $html, array( 'blocks' => array() ) )['blocks'];
+
+		self::assertCount( 2, $blocks );
+		self::assertSame( 'figura', $blocks[0]['type'] );
+		self::assertSame( 77, $blocks[0]['props']['attachment_id'] );
+		self::assertSame( 'paragrafo', $blocks[1]['type'] );
+		self::assertSame( 'Prima parte del testo e seconda parte.', $blocks[1]['props']['text'] );
+	}
+
 	public function test_edited_paragraph_bumps_version_and_new_elements_become_blocks(): void {
 		$original = self::chapter();
 		$html     = EditorProjection::to_html( $original );

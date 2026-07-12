@@ -689,6 +689,9 @@ final class ProjectsPage {
 		if ( 'pending' === $cover_state ) {
 			echo '<button class="button" data-gw-action="POST /projects/' . $project_id . '/cover/regenerate">' . esc_html__( 'Avvia pipeline copertina', 'ghostwriter' ) . '</button>';
 		}
+		if ( 'brief_ready' === $cover_state ) {
+			echo '<button class="button" data-gw-action="POST /projects/' . $project_id . '/cover/regenerate">' . esc_html__( 'Rilancia artwork dal brief', 'ghostwriter' ) . '</button>';
+		}
 		if ( 'composed' === $cover_state ) {
 			echo '<button class="button button-primary" data-gw-action="POST /projects/' . $project_id . '/cover/approve" data-gw-confirm>' . esc_html__( 'Approva', 'ghostwriter' ) . '</button> '
 				. '<button class="button" data-gw-action="POST /projects/' . $project_id . '/cover/regenerate" data-gw-confirm>' . esc_html__( 'Rigenera', 'ghostwriter' ) . '</button>';

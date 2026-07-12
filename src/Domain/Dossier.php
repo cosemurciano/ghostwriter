@@ -77,7 +77,13 @@ final class Dossier {
 			$mutated               = $mutator( $current );
 			$mutated['updated_at'] = gmdate( 'c' );
 
-			// Rilettura di verifica: se un altro job ha scritto nel frattempo, si riapplica.
+			// Rilettura di verifica: se un altro job ha scritto nel frattempo,
+			// si riapplica. La cache meta va invalidata, altrimenti la
+			// rilettura restituirebbe sempre il valore già primato in questa
+			// richiesta e il lock non vedrebbe mai le scritture concorrenti.
+			if ( function_exists( 'wp_cache_delete' ) ) {
+				wp_cache_delete( $project_id, 'post_meta' );
+			}
 			$fresh = $this->projects->get_dossier( $project_id );
 			if ( ( $fresh['updated_at'] ?? '' ) !== $expected_updated_at ) {
 				continue;

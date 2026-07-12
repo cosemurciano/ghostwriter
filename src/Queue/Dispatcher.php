@@ -59,7 +59,31 @@ final class Dispatcher {
 		};
 		$this->has_scheduled   = $has_scheduled ?? static function ( string $hook, array $args, string $group ): bool {
 			self::assert_scheduler_loaded();
-			return \as_has_scheduled_action( $hook, $args, $group );
+			if ( \as_has_scheduled_action( $hook, $args, $group ) ) {
+				return true;
+			}
+			// I retry hanno 'attempt' negli args e sfuggirebbero al match
+			// esatto: si confronta la dedup_key (che ignora attempt) con le
+			// azioni pending dello stesso hook.
+			if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
+				return false;
+			}
+			$job_name = substr( $hook, strlen( 'gw_job_' ) );
+			$target   = self::dedup_key( $job_name, (array) ( $args[0] ?? array() ) );
+			$actions  = (array) \as_get_scheduled_actions(
+				array( 'hook' => $hook, 'status' => 'pending', 'per_page' => 25, 'group' => $group ),
+				OBJECT
+			);
+			foreach ( $actions as $action ) {
+				if ( ! is_object( $action ) || ! method_exists( $action, 'get_args' ) ) {
+					continue;
+				}
+				$pending = (array) ( ( (array) $action->get_args() )[0] ?? array() );
+				if ( self::dedup_key( $job_name, $pending ) === $target ) {
+					return true;
+				}
+			}
+			return false;
 		};
 	}
 
@@ -169,6 +193,12 @@ final class Dispatcher {
 			return;
 		}
 
+		// Un'azione sfuggita alla cancellazione (o un retry già schedulato)
+		// non deve eseguire chiamate AI a pipeline ferma.
+		if ( function_exists( 'get_post_meta' ) && PipelineRouter::is_stopped( (int) ( $args['project_id'] ?? 0 ) ) ) {
+			return;
+		}
+
 		$attempt = max( 1, (int) ( $args['attempt'] ?? 1 ) );
 		$job     = ( $this->job_factory )( $job_class );
 
@@ -187,12 +217,21 @@ final class Dispatcher {
 				)
 			);
 
-			if ( $attempt < self::MAX_ATTEMPTS ) {
+			// Pipeline fermata dall'utente durante l'esecuzione: nessun
+			// retry automatico — alla ripresa kick() rilancia dallo stato.
+			$stopped = function_exists( 'get_post_meta' )
+				&& PipelineRouter::is_stopped( (int) ( $args['project_id'] ?? 0 ) );
+
+			if ( ! $stopped && $attempt < self::MAX_ATTEMPTS ) {
 				// Backoff esponenziale: 60s, 240s (60·4^n).
 				$delay           = self::BACKOFF_BASE * ( 4 ** ( $attempt - 1 ) );
 				$args['attempt'] = $attempt + 1;
 				( $this->schedule_single )( time() + $delay, self::hook_for( $job_name ), array( $args ), self::GROUP );
 				return;
+			}
+
+			if ( $stopped ) {
+				return; // Fermo esplicito: niente on_failure, lo stato resta ripartibile.
 			}
 
 			$job->on_failure( $args, $e );

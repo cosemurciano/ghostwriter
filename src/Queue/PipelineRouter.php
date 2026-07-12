@@ -268,17 +268,34 @@ final class PipelineRouter {
 	}
 
 	/**
-	 * Ri-innesca la pipeline dopo una ripresa: i capitoli fermi a metà passo
-	 * ripartono dal loro stato (i job sono idempotenti); se non c'è nulla in
-	 * corso e la sequenza automatica è attiva, parte il prossimo planned.
+	 * Ri-innesca la pipeline dopo una ripresa: OGNI transizione che il router
+	 * avrebbe gestito mentre era fermo viene riprodotta dagli stati correnti
+	 * (i job sono idempotenti). Copre: indice/glossario approvati da fermo,
+	 * capitoli a metà passo (compreso revised), fase copertina, traduzioni.
 	 */
 	public function kick( int $project_id ): void {
 		if ( $this->projects->is_translation( $project_id ) ) {
-			if ( 'translating' === $this->states->state_of( $project_id, StateMachine::TYPE_TRANSLATION ) ) {
+			$state = $this->states->state_of( $project_id, StateMachine::TYPE_TRANSLATION );
+			if ( 'glossary_approved' === $state ) {
+				$this->on_translation_changed( $project_id, 'glossary_approved' );
+				return;
+			}
+			if ( 'translating' === $state ) {
 				$this->dispatch_next_translation( $project_id );
 			}
 			return;
 		}
+
+		$project_state = $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT );
+
+		// Indice approvato mentre la pipeline era ferma: capitoli mai creati.
+		if ( 'outline_approved' === $project_state && empty( $this->projects->get_chapter_ids( $project_id ) ) ) {
+			$this->dispatcher->dispatch( MaterializeChaptersJob::class, array( 'project_id' => $project_id ) );
+			return;
+		}
+
+		// Fase copertina rimasta a metà (brief_ready/artwork_ready/approved).
+		$this->on_cover_changed( $project_id, $this->states->state_of( $project_id, StateMachine::TYPE_COVER ) );
 
 		$busy = false;
 		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
@@ -295,8 +312,9 @@ final class PipelineRouter {
 					$this->dispatcher->dispatch( ReviewChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
 					$busy = true;
 					break;
+				case 'revised':
 				case 'images_pending':
-					$this->on_chapter_changed( $chapter_id, 'images_pending' );
+					$this->on_chapter_changed( $chapter_id, $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER ) );
 					$busy = true;
 					break;
 			}
@@ -304,7 +322,7 @@ final class PipelineRouter {
 
 		if ( ! $busy
 			&& $this->auto_advance( $project_id )
-			&& 'generating' === $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT ) ) {
+			&& 'generating' === $project_state ) {
 			$this->dispatch_next_chapter( $project_id );
 		}
 	}
