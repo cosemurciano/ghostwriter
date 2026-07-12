@@ -23,7 +23,11 @@ final class ChapterEditor {
 
 	private static bool $syncing = false;
 
-	public function __construct( private ChapterRepository $chapters ) {
+	public function __construct(
+		private ChapterRepository $chapters,
+		private \Ghostwriter\Repository\ProjectRepository $projects,
+		private \Ghostwriter\Domain\Dossier $dossier
+	) {
 	}
 
 	public function register(): void {
@@ -101,6 +105,12 @@ final class ChapterEditor {
 			return;
 		}
 
+		// Solo i salvataggi reali dall'editor: gli update programmatici
+		// (rinumerazioni, titoli dai job) non devono rifare il round-trip.
+		if ( 'editpost' !== (string) ( $_POST['action'] ?? '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+
 		$previous = $this->chapters->get_content( $post_id ) ?? array(
 			'schema_version' => '1.0',
 			'chapter_id'     => $post_id,
@@ -118,6 +128,14 @@ final class ChapterEditor {
 		self::$syncing = true;
 		try {
 			$this->chapters->save_content( $post_id, $content );
+
+			// L'outline del dossier segue titolo e ordine reali dei capitoli
+			// (l'"Ordine" degli attributi pagina è modificabile dall'editor).
+			$project_id = $this->chapters->get_project_id( $post_id );
+			if ( $project_id > 0 && null !== $this->dossier->get( $project_id ) ) {
+				$this->dossier->update_outline_entry( $project_id, $post_id, array( 'title' => $post->post_title ) );
+				$this->dossier->sync_outline_order( $project_id, $this->projects->get_chapter_ids( $project_id ) );
+			}
 		} catch ( SchemaValidationException $e ) {
 			set_transient(
 				self::NOTICE_TRANSIENT . get_current_user_id(),

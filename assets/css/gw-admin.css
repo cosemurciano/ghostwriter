@@ -338,6 +338,19 @@
 	word-break: break-word;
 }
 
+/* --- Capitoli: riordino --- */
+
+.gw-chapter-move {
+	width: 70px;
+	white-space: nowrap;
+}
+
+.gw-chapter-move .button {
+	padding: 0 6px;
+	min-height: 24px;
+	line-height: 22px;
+}
+
 /* --- Indice: rigenerazione AI --- */
 
 .gw-outline-keep {

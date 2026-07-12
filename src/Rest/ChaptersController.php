@@ -25,7 +25,9 @@ final class ChaptersController {
 		private ChapterRepository $chapters,
 		private BlockRevisionService $revisions,
 		private StateMachine $states,
-		private Dispatcher $dispatcher
+		private Dispatcher $dispatcher,
+		private \Ghostwriter\Repository\ProjectRepository $projects,
+		private \Ghostwriter\Domain\Dossier $dossier
 	) {
 	}
 
@@ -49,6 +51,16 @@ final class ChaptersController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => $this->guarded( 'draft' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/move',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'move' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -158,6 +170,38 @@ final class ChaptersController {
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Sposta il capitolo di una posizione (su/giù): aggiorna menu_order di
+	 * tutta la sequenza e riallinea l'outline del dossier. L'indice del
+	 * libro all'export segue automaticamente.
+	 */
+	public function move( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		$direction = (string) $request->get_param( 'direction' );
+		if ( ! in_array( $direction, array( 'up', 'down' ), true ) ) {
+			return new WP_Error( 'gw_invalid_params', 'direction deve essere up o down.', array( 'status' => 400 ) );
+		}
+
+		$project_id = $this->chapters->get_project_id( $chapter_id );
+		$ids        = $this->projects->get_chapter_ids( $project_id );
+		$sequence   = ChapterRepository::sequence_move( $ids, $chapter_id, $direction );
+
+		if ( $sequence === $ids ) {
+			return new WP_REST_Response( array( 'moved' => false ) );
+		}
+
+		$this->chapters->renumber( $sequence );
+		if ( null !== $this->dossier->get( $project_id ) ) {
+			$this->dossier->sync_outline_order( $project_id, $sequence );
+		}
+
+		return new WP_REST_Response( array( 'moved' => true ) );
 	}
 
 	/**

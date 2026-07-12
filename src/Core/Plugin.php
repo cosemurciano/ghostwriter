@@ -210,10 +210,14 @@ final class Plugin {
 				$c->get( ChapterRepository::class ),
 				$c->get( BlockRevisionService::class ),
 				$c->get( StateMachine::class ),
-				$c->get( Dispatcher::class )
+				$c->get( Dispatcher::class ),
+				$c->get( ProjectRepository::class ),
+				$c->get( Dossier::class )
 			),
 			ChapterEditor::class        => static fn( Plugin $c ): object => new ChapterEditor(
-				$c->get( ChapterRepository::class )
+				$c->get( ChapterRepository::class ),
+				$c->get( ProjectRepository::class ),
+				$c->get( Dossier::class )
 			),
 			RegistryController::class   => static fn( Plugin $c ): object => new RegistryController(
 				$c->get( ThemeRegistry::class ),

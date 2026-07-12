@@ -423,6 +423,15 @@
 			return { language: data.language };
 		},
 
+		// Capitolo manuale: nasce vuoto, dopo il capitolo scelto o in fondo.
+		addChapter: function ( data ) {
+			return {
+				title: data.title,
+				brief: data.brief || '',
+				after: parseInt( data.after, 10 ) || 0,
+			};
+		},
+
 		// Nuova fonte: source_id dal titolo; URL, media WP o path in base al tipo.
 		addSource: function ( data ) {
 			var source = {
