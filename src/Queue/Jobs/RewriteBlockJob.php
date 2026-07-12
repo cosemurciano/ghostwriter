@@ -74,7 +74,7 @@ final class RewriteBlockJob implements JobInterface {
 			new AiRequest( AiRequest::PHASE_REWRITE, $context, $project_id, $chapter_id )
 		);
 
-		$new_block = $result->content;
+		$new_block = ChapterRepository::normalize_block( $result->content );
 
 		$errors = $this->validator->get_block_validation_errors( $new_block );
 		if ( ! empty( $errors ) ) {

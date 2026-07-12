@@ -6,6 +6,9 @@ namespace Ghostwriter\Rest;
 use Ghostwriter\Core\Capabilities;
 use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\StateMachine;
+use Ghostwriter\Queue\Dispatcher;
+use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Repository\ChapterRepository;
 use WP_Error;
 use WP_REST_Request;
@@ -20,7 +23,8 @@ final class ChaptersController {
 	public function __construct(
 		private ChapterRepository $chapters,
 		private BlockRevisionService $revisions,
-		private StateMachine $states
+		private StateMachine $states,
+		private Dispatcher $dispatcher
 	) {
 	}
 
@@ -34,6 +38,16 @@ final class ChaptersController {
 			array(
 				'methods'             => 'GET',
 				'callback'            => $this->guarded( 'show' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/draft',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'draft' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -105,6 +119,34 @@ final class ChaptersController {
 				'content'    => $this->chapters->get_content( $chapter_id ),
 			)
 		);
+	}
+
+	/**
+	 * Avvia la stesura AI di un singolo capitolo (generazione capitolo per
+	 * capitolo: l'utente decide quando scrivere il prossimo).
+	 */
+	public function draft( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		$project_id = $this->chapters->get_project_id( $chapter_id );
+		if ( PipelineRouter::is_stopped( $project_id ) ) {
+			return new WP_Error( 'gw_pipeline_stopped', 'Elaborazione ferma: riprendila prima di scrivere nuovi capitoli.', array( 'status' => 409 ) );
+		}
+
+		$state = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
+		if ( ! in_array( $state, array( 'planned', 'drafting' ), true ) ) {
+			return new WP_Error( 'gw_invalid_state', "Il capitolo è in stato {$state}: la stesura si avvia solo da planned.", array( 'status' => 409 ) );
+		}
+
+		$this->dispatcher->dispatch(
+			DraftChapterJob::class,
+			array( 'project_id' => $project_id, 'chapter_id' => $chapter_id )
+		);
+
+		return new WP_REST_Response( array( 'queued' => true ), 202 );
 	}
 
 	public function retry( WP_REST_Request $request ): WP_REST_Response|WP_Error {

@@ -7,6 +7,7 @@ use Ghostwriter\Ai\SkillsManager;
 use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Jobs\ExportJob;
+use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Queue\QueueStatus;
 use Ghostwriter\Rendering\ThemeRegistry;
 use Ghostwriter\Repository\ChapterRepository;
@@ -294,6 +295,10 @@ final class ProjectsPage {
 			. '<option value="openai"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'openai', false ) . '>OpenAI</option>'
 			. '<option value="mock"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'mock', false ) . '>mock</option>'
 			. '</select> <input type="text" name="image_model" value="' . esc_attr( (string) ( $ai['image_model'] ?? '' ) ) . '" placeholder="gpt-image-1"/></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Ritmo di scrittura', 'ghostwriter' ) . '</th><td><label>'
+			. '<input type="checkbox" name="auto_advance" value="1"' . checked( (bool) ( $ai['auto_advance'] ?? false ), true, false ) . '/> '
+			. esc_html__( 'Scrivi tutti i capitoli in sequenza automatica', 'ghostwriter' ) . '</label>'
+			. '<p class="description">' . esc_html__( 'Spento (consigliato): dopo ogni capitolo la pipeline si ferma e il successivo si avvia con "Scrivi (AI)" dalla tab Capitoli. Acceso: il libro intero senza pause.', 'ghostwriter' ) . '</p></td></tr>';
 		echo '</table>';
 		$this->box_close();
 
@@ -301,6 +306,12 @@ final class ProjectsPage {
 	}
 
 	private function render_pipeline_actions( int $project_id, string $state, bool $is_translation ): void {
+		if ( PipelineRouter::is_stopped( $project_id ) ) {
+			echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__( 'Elaborazione ferma.', 'ghostwriter' ) . '</strong> '
+				. esc_html__( 'Nessun nuovo lavoro AI parte finché non riprendi.', 'ghostwriter' )
+				. ' <button class="button button-small" data-gw-action="POST /projects/' . $project_id . '/pipeline/resume" data-gw-confirm>' . esc_html__( 'Riprendi elaborazione', 'ghostwriter' ) . '</button></p></div>';
+		}
+
 		$button = static function ( string $label, string $action, string $class = 'button button-primary', string $hint = '' ): void {
 			echo '<button class="' . esc_attr( $class ) . '" data-gw-action="' . esc_attr( $action ) . '" data-gw-confirm>' . esc_html( $label ) . '</button>';
 			if ( '' !== $hint ) {
@@ -375,7 +386,9 @@ final class ProjectsPage {
 				. ( $job['next_run'] ? esc_html( sprintf( __( ' · prossimo passaggio alle %s', 'ghostwriter' ), $job['next_run'] ) ) : '' )
 				. '</p>';
 		}
-		echo '</div></div>';
+		echo '</div>';
+		echo '<button class="button button-small gw-queue-stop" data-gw-action="POST /projects/' . $project_id . '/pipeline/stop" data-gw-confirm>' . esc_html__( 'Ferma elaborazione', 'ghostwriter' ) . '</button>';
+		echo '</div>';
 	}
 
 	// ------------------------------------------------------------------ //
@@ -518,12 +531,15 @@ final class ProjectsPage {
 
 		echo '<table class="widefat striped gw-clean-table"><tbody>';
 		foreach ( $ids as $chapter_id ) {
-			$state = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
-			echo '<tr><td><strong>' . esc_html( get_the_title( $chapter_id ) ) . '</strong></td>'
+			$state     = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
+			$edit_link = get_edit_post_link( $chapter_id );
+			echo '<tr><td><strong>' . ( $edit_link ? '<a href="' . esc_url( $edit_link ) . '">' . esc_html( get_the_title( $chapter_id ) ) . '</a>' : esc_html( get_the_title( $chapter_id ) ) ) . '</strong></td>'
 				. '<td>' . $this->state_badge( $state ) . '</td>'
 				. '<td class="gw-muted">' . ( ! empty( $words[ $chapter_id ] ) ? esc_html( number_format_i18n( (int) $words[ $chapter_id ] ) ) . ' ' . esc_html__( 'parole', 'ghostwriter' ) : '' ) . '</td>'
 				. '<td class="gw-row-actions">'
+				. ( 'planned' === $state ? '<button class="button button-small button-primary" data-gw-action="POST /chapters/' . $chapter_id . '/draft" data-gw-confirm>' . esc_html__( 'Scrivi (AI)', 'ghostwriter' ) . '</button> ' : '' )
 				. ( 'failed' === $state ? '<button class="button button-small" data-gw-action="POST /chapters/' . $chapter_id . '/retry" data-gw-confirm>' . esc_html__( 'Riprova', 'ghostwriter' ) . '</button> ' : '' )
+				. ( $edit_link ? '<a class="button button-small" href="' . esc_url( $edit_link ) . '">' . esc_html__( 'Apri nell\'editor', 'ghostwriter' ) . '</a> ' : '' )
 				. '<button class="button button-small" data-gw-chapter-blocks="' . $chapter_id . '">' . esc_html__( 'Blocchi', 'ghostwriter' ) . '</button>'
 				. '</td></tr>'
 				. '<tr class="gw-blocks-row" data-chapter="' . $chapter_id . '" style="display:none"><td colspan="4"><div class="gw-blocks-target gw-muted">…</div></td></tr>';
@@ -782,6 +798,8 @@ final class ProjectsPage {
 			'budget_exceeded'         => __( 'Budget superato: pipeline in pausa', 'ghostwriter' ),
 			'budget_still_exceeded'   => __( 'Budget ancora superato', 'ghostwriter' ),
 			'budget_resumed'          => __( 'Pipeline ripresa dopo pausa budget', 'ghostwriter' ),
+			'pipeline_stopped'        => __( 'Elaborazione fermata dall\'utente', 'ghostwriter' ),
+			'pipeline_resumed'        => __( 'Elaborazione ripresa', 'ghostwriter' ),
 			'translation_started'     => __( 'Traduzione avviata', 'ghostwriter' ),
 			'chapters_translated'     => __( 'Capitoli tradotti', 'ghostwriter' ),
 			'translation_completed'   => __( 'Traduzione completata', 'ghostwriter' ),

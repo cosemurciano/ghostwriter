@@ -79,6 +79,9 @@ final class PipelineRouterTest extends TestCase {
 
 			public bool $translation = false;
 
+			/** @var array<string, mixed> */
+			public array $config = array( 'ai' => array() );
+
 			public function __construct() { // phpcs:ignore
 			}
 
@@ -88,6 +91,10 @@ final class PipelineRouterTest extends TestCase {
 
 			public function is_translation( int $project_id ): bool {
 				return $this->translation;
+			}
+
+			public function get_config( int $project_id ): array {
+				return $this->config;
 			}
 		};
 		$projects->chapter_ids = array( self::CH1, self::CH2 );
@@ -184,15 +191,34 @@ final class PipelineRouterTest extends TestCase {
 		self::assertSame( 'complete', $this->meta[ self::CH1 ][ StateMachine::META_STATE ] );
 	}
 
-	public function test_chapter_complete_indexes_and_starts_next_planned(): void {
+	public function test_chapter_complete_indexes_but_waits_for_user_by_default(): void {
 		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'complete';
-		// CH2 senza stato → planned.
+		// CH2 senza stato → planned. Niente auto_advance: il prossimo
+		// capitolo parte dal pulsante "Scrivi (AI)", non da solo.
+
+		$this->router->on_state_changed( self::CH1, 'chapter', 'revised', 'complete', 'completed' );
+
+		self::assertSame( array( 'gw_job_index_chapter' ), $this->hooks() );
+		self::assertSame( self::CH1, $this->enqueued[0]['args']['chapter_id'] );
+	}
+
+	public function test_chapter_complete_chains_next_when_auto_advance_is_on(): void {
+		$this->projects_stub->config                         = array( 'ai' => array( 'auto_advance' => true ) );
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ] = 'complete';
 
 		$this->router->on_state_changed( self::CH1, 'chapter', 'revised', 'complete', 'completed' );
 
 		self::assertSame( array( 'gw_job_index_chapter', 'gw_job_draft_chapter' ), $this->hooks() );
-		self::assertSame( self::CH1, $this->enqueued[0]['args']['chapter_id'] );
 		self::assertSame( self::CH2, $this->enqueued[1]['args']['chapter_id'] );
+	}
+
+	public function test_stopped_project_dispatches_nothing(): void {
+		$this->meta[ self::PROJECT ][ PipelineRouter::META_STOPPED ] = '1';
+		$this->meta[ self::CH1 ][ StateMachine::META_STATE ]         = 'draft_ready';
+
+		$this->router->on_state_changed( self::CH1, 'chapter', 'drafting', 'draft_ready', 'draft_completed' );
+
+		self::assertSame( array(), $this->hooks() );
 	}
 
 	public function test_last_chapter_complete_moves_project_to_review(): void {

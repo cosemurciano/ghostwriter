@@ -385,6 +385,12 @@
 	color: #d63638;
 }
 
+.gw-queue-stop {
+	margin-left: auto;
+	align-self: center;
+	flex: none;
+}
+
 /* --- Tab Skills del progetto --- */
 
 .gw-phase-check {

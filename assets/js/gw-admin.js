@@ -325,6 +325,7 @@
 					model: data.model,
 					image_provider: data.image_provider || '',
 					image_model: data.image_model || '',
+					auto_advance: !! data.auto_advance,
 				},
 			};
 			if ( data.target_words ) {

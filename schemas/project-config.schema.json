@@ -141,6 +141,7 @@
         "model": { "type": "string" },
         "image_provider": { "type": "string" },
         "image_model": { "type": "string" },
+        "auto_advance": { "type": "boolean", "default": false, "description": "true: capitoli scritti in sequenza automatica; false (default): capitolo per capitolo, avviato dall'utente" },
         "budget": {
           "type": "object",
           "description": "Budget cap: la pipeline si ferma in stato 'paused_budget' al superamento",

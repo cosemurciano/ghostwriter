@@ -53,7 +53,7 @@ final class ReviewChapterJob implements JobInterface {
 			new AiRequest( AiRequest::PHASE_REVIEW, array( 'content' => $content ), $project_id, $chapter_id )
 		);
 
-		$revised               = $result->content;
+		$revised               = ChapterRepository::normalize_content( $result->content );
 		$revised['chapter_id'] = $chapter_id;
 
 		$errors = $this->validator->get_validation_errors( $revised, SchemaValidator::CHAPTER_CONTENT );

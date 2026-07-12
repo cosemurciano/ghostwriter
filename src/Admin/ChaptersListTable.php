@@ -147,10 +147,13 @@ final class ChaptersListTable extends \WP_List_Table {
 		$project_url = admin_url( 'admin.php?page=' . Menu::SLUG_PROJECTS . '&project=' . $project_id );
 		$state       = $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER );
 
-		$actions = array(
+		$edit_url = get_edit_post_link( $chapter_id );
+		$actions  = array(
+			'edit' => $edit_url ? '<a href="' . esc_url( $edit_url ) . '">' . esc_html__( 'Modifica nell\'editor', 'ghostwriter' ) . '</a>' : '',
 			'open' => '<a href="' . esc_url( $project_url ) . '">' . esc_html__( 'Apri nel progetto', 'ghostwriter' ) . '</a>',
 			'id'   => '<span class="gw-muted">ID ' . $chapter_id . '</span>',
 		);
+		$actions  = array_filter( $actions );
 		if ( 'failed' === $state ) {
 			$actions['retry'] = '<a href="#" data-gw-action="POST /chapters/' . $chapter_id . '/retry" data-gw-confirm>' . esc_html__( 'Riprova', 'ghostwriter' ) . '</a>';
 		}
@@ -162,7 +165,7 @@ final class ChaptersListTable extends \WP_List_Table {
 			$parent = (int) get_post_field( 'post_parent', $parent );
 		}
 
-		return '<strong>' . str_repeat( '— ', $depth ) . '<a class="row-title" href="' . esc_url( $project_url ) . '">'
+		return '<strong>' . str_repeat( '— ', $depth ) . '<a class="row-title" href="' . esc_url( $edit_url ?: $project_url ) . '">'
 			. esc_html( $item->post_title ?: __( '(senza titolo)', 'ghostwriter' ) ) . '</a></strong>'
 			. $this->row_actions( $actions );
 	}

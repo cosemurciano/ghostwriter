@@ -28,12 +28,23 @@ use Ghostwriter\Repository\ProjectRepository;
  */
 final class PipelineRouter {
 
+	/**
+	 * Flag di stop richiesto dall'utente: finché presente il router non
+	 * accoda nulla per il progetto (i job già in esecuzione terminano il
+	 * proprio passo, quelli in coda vengono cancellati dall'endpoint di stop).
+	 */
+	public const META_STOPPED = '_gw_pipeline_stopped';
+
 	public function __construct(
 		private Dispatcher $dispatcher,
 		private StateMachine $states,
 		private ProjectRepository $projects,
 		private ChapterRepository $chapters
 	) {
+	}
+
+	public static function is_stopped( int $project_id ): bool {
+		return '1' === (string) get_post_meta( $project_id, self::META_STOPPED, true );
 	}
 
 	/**
@@ -45,6 +56,10 @@ final class PipelineRouter {
 	}
 
 	public function on_state_changed( int $post_id, string $entity_type, string $from, string $to, string $event ): void {
+		$project_id = StateMachine::TYPE_CHAPTER === $entity_type ? $this->chapters->get_project_id( $post_id ) : $post_id;
+		if ( self::is_stopped( $project_id ) ) {
+			return;
+		}
 		if ( StateMachine::TYPE_PROJECT === $entity_type ) {
 			$this->on_project_changed( $post_id, $to );
 			return;
@@ -215,13 +230,77 @@ final class PipelineRouter {
 				break;
 
 			case 'complete':
-				// Capitolo completato nel vector store (se attivo), poi il successivo.
+				// Capitolo completato nel vector store (se attivo).
 				$this->dispatcher->dispatch( IndexChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
-				if ( ! $this->dispatch_next_chapter( $project_id ) ) {
+				if ( ! $this->has_planned_chapters( $project_id ) ) {
 					// Ultimo capitolo: il progetto passa in revisione complessiva.
 					$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'generation_completed', array( 'router' => 'all_chapters_complete' ) );
+				} elseif ( $this->auto_advance( $project_id ) ) {
+					// Sequenza automatica solo se richiesta in config: di default
+					// il capitolo successivo si avvia dal pulsante "Scrivi (AI)".
+					$this->dispatch_next_chapter( $project_id );
 				}
 				break;
+		}
+	}
+
+	private function has_planned_chapters( int $project_id ): bool {
+		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+			if ( 'planned' === $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Sequenza automatica tra capitoli: opt-in dalla config (ai.auto_advance).
+	 * Default: capitolo per capitolo, avviato dall'utente.
+	 */
+	private function auto_advance( int $project_id ): bool {
+		$config = $this->projects->get_config( $project_id );
+		return (bool) ( $config['ai']['auto_advance'] ?? false );
+	}
+
+	/**
+	 * Ri-innesca la pipeline dopo una ripresa: i capitoli fermi a metà passo
+	 * ripartono dal loro stato (i job sono idempotenti); se non c'è nulla in
+	 * corso e la sequenza automatica è attiva, parte il prossimo planned.
+	 */
+	public function kick( int $project_id ): void {
+		if ( $this->projects->is_translation( $project_id ) ) {
+			if ( 'translating' === $this->states->state_of( $project_id, StateMachine::TYPE_TRANSLATION ) ) {
+				$this->dispatch_next_translation( $project_id );
+			}
+			return;
+		}
+
+		$busy = false;
+		foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+			switch ( $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER ) ) {
+				case 'drafting':
+					$this->dispatcher->dispatch( DraftChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
+					$busy = true;
+					break;
+				case 'draft_ready':
+					$this->dispatcher->dispatch( SynopsisJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
+					$busy = true;
+					break;
+				case 'in_review':
+					$this->dispatcher->dispatch( ReviewChapterJob::class, array( 'project_id' => $project_id, 'chapter_id' => $chapter_id ) );
+					$busy = true;
+					break;
+				case 'images_pending':
+					$this->on_chapter_changed( $chapter_id, 'images_pending' );
+					$busy = true;
+					break;
+			}
+		}
+
+		if ( ! $busy
+			&& $this->auto_advance( $project_id )
+			&& 'generating' === $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT ) ) {
+			$this->dispatch_next_chapter( $project_id );
 		}
 	}
 
