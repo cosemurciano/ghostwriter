@@ -179,6 +179,27 @@ final class MpdfCssCompiler {
 			array( 'max-width' => '100%' )
 		);
 
+		// Allineamento figure nella pagina: centrate, mai spezzate, larghezza
+		// dalla size del blocco (small ½, medium ¾, full = larghezza pagina).
+		$css .= StyleResolver::rule(
+			'.gw-figura',
+			array(
+				'text-align'        => 'center',
+				'margin'            => '1em auto',
+				'page-break-inside' => 'avoid',
+			)
+		);
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-small img', array( 'max-width' => '50%' ) );
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-medium img', array( 'max-width' => '75%' ) );
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-full img', array( 'max-width' => '100%' ) );
+		$css .= StyleResolver::rule(
+			'.gw-figura .gw-caption',
+			array(
+				'text-align' => 'center',
+				'margin-top' => '0.4em',
+			)
+		);
+
 		return $css;
 	}
 

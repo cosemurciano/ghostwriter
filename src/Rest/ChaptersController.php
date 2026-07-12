@@ -8,6 +8,7 @@ use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\Jobs\GenerateEditorImageJob;
 use Ghostwriter\Queue\Jobs\ReviseChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Repository\ChapterRepository;
@@ -51,6 +52,26 @@ final class ChaptersController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => $this->guarded( 'draft' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/image',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'generate_image' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/image/(?P<request_id>[A-Za-z0-9]+)',
+			array(
+				'methods'             => 'GET',
+				'callback'            => $this->guarded( 'image_status' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -170,6 +191,64 @@ final class ChaptersController {
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Immagine AI dall'editor del capitolo: prompt libero + dimensione nel
+	 * libro. La generazione va in coda; l'editor interroga image_status.
+	 */
+	public function generate_image( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		$project_id = $this->chapters->get_project_id( $chapter_id );
+		$config     = $this->projects->get_config( $project_id );
+		if ( '' === (string) ( $config['ai']['image_provider'] ?? '' ) ) {
+			return new WP_Error( 'gw_no_image_provider', 'Nessun provider immagini configurato: impostalo nella tab Impostazioni del progetto (Motore AI → Immagini).', array( 'status' => 409 ) );
+		}
+
+		$prompt = trim( sanitize_textarea_field( (string) $request->get_param( 'prompt' ) ) );
+		if ( '' === $prompt ) {
+			return new WP_Error( 'gw_invalid_params', 'Descrivi l\'immagine da generare.', array( 'status' => 400 ) );
+		}
+
+		$size       = in_array( $request->get_param( 'size' ), array( 'small', 'medium', 'full' ), true ) ? (string) $request->get_param( 'size' ) : 'medium';
+		$request_id = strtolower( wp_generate_password( 16, false ) );
+
+		$this->dispatcher->dispatch(
+			GenerateEditorImageJob::class,
+			array(
+				'project_id' => $project_id,
+				'chapter_id' => $chapter_id,
+				'prompt'     => $prompt,
+				'size'       => $size,
+				'request_id' => $request_id,
+			)
+		);
+
+		return new WP_REST_Response( array( 'request_id' => $request_id ), 202 );
+	}
+
+	public function image_status( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$result = get_transient( GenerateEditorImageJob::TRANSIENT_PREFIX . (string) $request['request_id'] );
+
+		if ( ! is_array( $result ) ) {
+			return new WP_REST_Response( array( 'status' => 'pending' ) );
+		}
+		if ( isset( $result['error'] ) ) {
+			return new WP_REST_Response( array( 'status' => 'error', 'message' => (string) $result['error'] ) );
+		}
+
+		$attachment_id = (int) ( $result['attachment_id'] ?? 0 );
+		return new WP_REST_Response(
+			array(
+				'status'        => 'ready',
+				'attachment_id' => $attachment_id,
+				'url'           => (string) wp_get_attachment_url( $attachment_id ),
+			)
+		);
 	}
 
 	/**

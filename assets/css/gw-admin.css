@@ -338,6 +338,40 @@
 	word-break: break-word;
 }
 
+/* --- Modale "Immagine AI" nell'editor capitolo --- */
+
+#gw-ai-image-modal .gw-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba( 0, 0, 0, 0.6 );
+	z-index: 100000;
+}
+
+#gw-ai-image-modal .gw-modal {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate( -50%, -50% );
+	background: #fff;
+	border-radius: 4px;
+	box-shadow: 0 3px 30px rgba( 0, 0, 0, 0.3 );
+	padding: 20px 24px;
+	width: min( 520px, 92vw );
+	z-index: 100001;
+}
+
+#gw-ai-image-modal h2 {
+	margin-top: 0;
+}
+
+#gw-ai-image-modal .gw-modal-actions {
+	margin-bottom: 0;
+}
+
+#gw-ai-image-open .dashicons {
+	color: #2271b1;
+}
+
 /* --- Capitoli: riordino --- */
 
 .gw-chapter-move {

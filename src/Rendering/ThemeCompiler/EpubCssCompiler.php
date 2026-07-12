@@ -188,6 +188,32 @@ final class EpubCssCompiler {
 			'.gw-figura img',
 			array( 'max-width' => '100%' )
 		);
+		// Allineamento figure: centrate nel flusso reflowable, larghezza dalla
+		// size del blocco (i reader la rispettano come percentuale).
+		$css .= StyleResolver::rule(
+			'.gw-figura',
+			array(
+				'text-align' => 'center',
+				'margin'     => '1em auto',
+			)
+		);
+		$css .= StyleResolver::rule(
+			'.gw-figura img',
+			array(
+				'display' => 'inline-block',
+				'height'  => 'auto',
+			)
+		);
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-small img', array( 'max-width' => '50%' ) );
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-medium img', array( 'max-width' => '75%' ) );
+		$css .= StyleResolver::rule( '.gw-figura.gw-size-full img', array( 'max-width' => '100%' ) );
+		$css .= StyleResolver::rule(
+			'.gw-figura .gw-caption',
+			array(
+				'text-align' => 'center',
+				'margin-top' => '0.4em',
+			)
+		);
 		// Resa impilata delle tabelle (fallback stacked).
 		$css .= StyleResolver::rule(
 			'.gw-stacked .gw-stacked-row',

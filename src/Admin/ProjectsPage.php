@@ -269,11 +269,10 @@ final class ProjectsPage {
 			. ( $unlocked ? '' : ' <span class="gw-state gw-state-complete">' . esc_html__( 'bloccati: generazione avviata', 'ghostwriter' ) . '</span>' )
 		);
 		echo '<table class="form-table" role="presentation">';
-		echo '<tr><th>' . esc_html__( 'Formato (mm)', 'ghostwriter' ) . '</th><td>'
-			. '<input type="number" name="trim_width_mm" value="' . esc_attr( (string) ( $format['trim_width_mm'] ?? '' ) ) . '" style="width:90px"' . $lock . '/> × '
-			. '<input type="number" name="trim_height_mm" value="' . esc_attr( (string) ( $format['trim_height_mm'] ?? '' ) ) . '" style="width:90px"' . $lock . '/> '
-			. '<label style="margin-left:12px"><input type="checkbox" name="print_ready" value="1"' . checked( ! empty( $format['print_ready'] ), true, false ) . $lock . '/> ' . esc_html__( 'print-ready (300dpi, abbondanza)', 'ghostwriter' ) . '</label>'
-			. '<p class="description">' . esc_html__( 'Vincola copertina, risoluzione immagini e temi compatibili.', 'ghostwriter' ) . '</p></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Formato libro', 'ghostwriter' ) . '</th><td>'
+			. NewProjectPage::format_picker( (float) ( $format['trim_width_mm'] ?? 152 ), (float) ( $format['trim_height_mm'] ?? 229 ), $lock ) // phpcs:ignore WordPress.Security.EscapeOutput
+			. ' <label style="margin-left:12px"><input type="checkbox" name="print_ready" value="1"' . checked( ! empty( $format['print_ready'] ), true, false ) . $lock . '/> ' . esc_html__( 'print-ready (300dpi, abbondanza)', 'ghostwriter' ) . '</label>'
+			. '<p class="description">' . esc_html__( 'I tre formati più usati su Amazon KDP o dimensioni personalizzate. Vincola copertina, risoluzione immagini e temi compatibili.', 'ghostwriter' ) . '</p></td></tr>';
 		echo '<tr><th>' . esc_html__( 'Blocchi ammessi', 'ghostwriter' ) . '</th><td><fieldset class="gw-blocks-fieldset">';
 		foreach ( array( 'paragrafo', 'heading', 'citazione', 'box_approfondimento', 'figura', 'tabella', 'elenco', 'esercizio', 'codice', 'separatore' ) as $block ) {
 			echo '<label><input type="checkbox" name="allowed_blocks[]" value="' . esc_attr( $block ) . '"' . checked( in_array( $block, $allowed, true ), true, false ) . $lock . '/> ' . esc_html( $block ) . '</label>';
@@ -810,6 +809,7 @@ final class ProjectsPage {
 			'chapter_indexed'         => __( 'Capitolo indicizzato (RAG)', 'ghostwriter' ),
 			'chapter_index_failed'    => __( 'Indicizzazione capitolo fallita', 'ghostwriter' ),
 			'image_generated'         => __( 'Immagine generata', 'ghostwriter' ),
+			'editor_image_failed'     => __( 'Immagine AI dall\'editor fallita', 'ghostwriter' ),
 			'cover_approved'          => __( 'Copertina approvata', 'ghostwriter' ),
 			'cover_brief_failed'      => __( 'Copertina: brief fallito', 'ghostwriter' ),
 			'cover_artwork_failed'    => __( 'Copertina: artwork fallito', 'ghostwriter' ),

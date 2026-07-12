@@ -36,6 +36,49 @@ final class ChapterEditor {
 		add_action( 'edit_form_after_title', array( $this, 'render_hint' ) );
 		add_action( 'admin_notices', array( $this, 'render_notice' ) );
 		add_action( 'add_meta_boxes_' . PostTypes::CHAPTER, array( $this, 'register_meta_box' ) );
+		add_action( 'media_buttons', array( $this, 'render_image_button' ) );
+		add_action( 'admin_footer', array( $this, 'render_image_modal' ) );
+	}
+
+	/**
+	 * Pulsante "Immagine AI" accanto ad "Aggiungi media" nell'editor.
+	 */
+	public function render_image_button(): void {
+		if ( PostTypes::CHAPTER !== ( get_current_screen()->post_type ?? '' ) ) {
+			return;
+		}
+		echo '<button type="button" class="button" id="gw-ai-image-open"><span class="dashicons dashicons-art" style="vertical-align:text-top"></span> '
+			. esc_html__( 'Immagine AI', 'ghostwriter' ) . '</button>';
+	}
+
+	/**
+	 * Modale del pulsante: prompt + dimensione nel libro. La generazione va
+	 * in coda; al termine la figura viene inserita nel punto del cursore.
+	 */
+	public function render_image_modal(): void {
+		$screen = get_current_screen();
+		if ( PostTypes::CHAPTER !== ( $screen->post_type ?? '' ) || 'post' !== ( $screen->base ?? '' ) ) {
+			return;
+		}
+		$chapter_id = (int) ( $_GET['post'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification
+
+		echo '<div id="gw-ai-image-modal" style="display:none" data-gw-image-chapter="' . $chapter_id . '">'
+			. '<div class="gw-modal-backdrop"></div>'
+			. '<div class="gw-modal" role="dialog" aria-modal="true">'
+			. '<h2>' . esc_html__( 'Genera immagine con l\'AI', 'ghostwriter' ) . '</h2>'
+			. '<p class="gw-muted">' . esc_html__( 'Descrivi il soggetto, lo stile e l\'atmosfera. L\'immagine viene salvata nella Media Library e inserita nel testo come figura del libro.', 'ghostwriter' ) . '</p>'
+			. '<textarea id="gw-ai-image-prompt" rows="4" style="width:100%" placeholder="' . esc_attr__( 'Es.: fotografia dall\'alto di una masseria salentina al tramonto, toni caldi, senza testo', 'ghostwriter' ) . '"></textarea>'
+			. '<p><label>' . esc_html__( 'Dimensione nel libro:', 'ghostwriter' ) . ' <select id="gw-ai-image-size">'
+			. '<option value="full">' . esc_html__( 'Larghezza pagina', 'ghostwriter' ) . '</option>'
+			. '<option value="medium" selected>' . esc_html__( 'Media (¾ di pagina)', 'ghostwriter' ) . '</option>'
+			. '<option value="small">' . esc_html__( 'Piccola (½ di pagina)', 'ghostwriter' ) . '</option>'
+			. '</select></label></p>'
+			. '<p class="gw-ai-image-status gw-muted" style="display:none"><span class="spinner is-active" style="float:none;margin:0 4px 0 0"></span>'
+			. esc_html__( 'Generazione in corso (30–60 secondi): l\'immagine verrà inserita nel punto del cursore.', 'ghostwriter' ) . '</p>'
+			. '<p class="gw-modal-actions">'
+			. '<button type="button" class="button button-primary" id="gw-ai-image-generate">' . esc_html__( 'Genera e inserisci', 'ghostwriter' ) . '</button> '
+			. '<button type="button" class="button" id="gw-ai-image-cancel">' . esc_html__( 'Annulla', 'ghostwriter' ) . '</button>'
+			. '</p></div></div>';
 	}
 
 	public function register_meta_box(): void {
