@@ -96,6 +96,7 @@ final class ProjectsPage {
 		// in qualunque stato (le azioni restano contestuali nella barra sopra).
 		$tabs = $is_translation
 			? array(
+				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
 				'glossario' => __( 'Glossario', 'ghostwriter' ),
 				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
 				'copertina' => __( 'Copertina', 'ghostwriter' ),
@@ -103,16 +104,17 @@ final class ProjectsPage {
 				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
 			)
 			: array(
+				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
+				'fonti'     => __( 'Fonti', 'ghostwriter' ),
 				'indice'    => __( 'Indice', 'ghostwriter' ),
 				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
-				'fonti'     => __( 'Fonti', 'ghostwriter' ),
 				'copertina' => __( 'Copertina', 'ghostwriter' ),
 				'export'    => __( 'Export', 'ghostwriter' ),
 				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
 			);
 
 		$default_tab = match ( $state ) {
-			'setup', 'sources_ingesting' => $is_translation ? 'glossario' : 'fonti',
+			'setup', 'sources_ingesting' => $is_translation ? 'glossario' : 'impostazioni',
 			'outline_proposed', 'outline_approved' => 'indice',
 			'glossary_proposed', 'glossary_approved' => 'glossario',
 			'generating', 'translating', 'review' => 'capitoli',
@@ -133,15 +135,14 @@ final class ProjectsPage {
 			echo '</div>';
 		};
 
+		$panel( 'impostazioni', fn() => $this->render_settings_box( $project_id, $state, $config, $is_translation ) );
 		if ( $is_translation ) {
 			$panel( 'glossario', fn() => $this->render_glossary_box( $project_id, $state, $dossier ) );
 		} else {
+			$panel( 'fonti', fn() => $this->render_sources_box( $project_id, $config ) );
 			$panel( 'indice', fn() => $this->render_outline_box( $project_id, $state, $dossier ) );
 		}
 		$panel( 'capitoli', fn() => $this->render_chapters_box( $project_id, $dossier ) );
-		if ( ! $is_translation ) {
-			$panel( 'fonti', fn() => $this->render_sources_box( $project_id, $config ) );
-		}
 		$panel( 'copertina', fn() => $this->render_cover_box( $project_id, $config ) );
 		$panel( 'export', fn() => $this->render_export_box( $project_id, $config ) );
 		$panel(
@@ -151,6 +152,75 @@ final class ProjectsPage {
 				$this->render_log_box( $project_id );
 			}
 		);
+	}
+
+	/**
+	 * Impostazioni del progetto: tutti i campi della config, raggruppati con
+	 * logica (contenuto → formato → struttura → motore AI e budget). Formato
+	 * e blocchi si bloccano quando la generazione è partita.
+	 *
+	 * @param array<string, mixed> $config Config progetto.
+	 */
+	private function render_settings_box( int $project_id, string $state, array $config, bool $is_translation ): void {
+		$unlocked = in_array( $state, array( 'setup', 'sources_ingesting', 'outline_proposed', 'glossary_proposed' ), true );
+		$lock     = $unlocked ? '' : ' disabled';
+		$brief    = (array) ( $config['brief'] ?? array() );
+		$format   = (array) ( $config['format'] ?? array() );
+		$ai       = (array) ( $config['ai'] ?? array() );
+		$allowed  = array_map( 'strval', (array) ( $config['structural_profile']['allowed_blocks'] ?? array() ) );
+
+		echo '<form data-gw-form="PUT /projects/' . $project_id . '/settings" data-gw-transform="projectSettings">';
+
+		$this->box_open( esc_html__( 'Contenuto e brief', 'ghostwriter' ) );
+		echo '<table class="form-table" role="presentation">';
+		echo '<tr><th>' . esc_html__( 'Titolo', 'ghostwriter' ) . '</th><td><input type="text" name="title" value="' . esc_attr( get_the_title( $project_id ) ) . '" class="regular-text"/></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Tesi / obiettivo', 'ghostwriter' ) . '</th><td><textarea name="thesis" rows="3" class="large-text">' . esc_textarea( (string) ( $brief['thesis'] ?? '' ) ) . '</textarea></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Pubblico', 'ghostwriter' ) . '</th><td><input type="text" name="audience" value="' . esc_attr( (string) ( $brief['audience'] ?? '' ) ) . '" class="regular-text"/></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Genere', 'ghostwriter' ) . '</th><td><select name="genre">';
+		foreach ( array( 'divulgazione', 'saggistica', 'manualistica', 'guida', 'narrativa', 'altro' ) as $genre ) {
+			echo '<option value="' . esc_attr( $genre ) . '"' . selected( (string) ( $brief['genre'] ?? '' ), $genre, false ) . '>' . esc_html( $genre ) . '</option>';
+		}
+		echo '</select> <label>' . esc_html__( 'Obiettivo parole', 'ghostwriter' ) . ' <input type="number" name="target_words" min="1000" step="1000" value="' . esc_attr( (string) ( $brief['target_length']['value'] ?? '' ) ) . '"/></label></td></tr>';
+		echo '</table>';
+		$this->box_close();
+
+		$this->box_open(
+			esc_html__( 'Formato fisico e struttura', 'ghostwriter' )
+			. ( $unlocked ? '' : ' <span class="gw-state gw-state-complete">' . esc_html__( 'bloccati: generazione avviata', 'ghostwriter' ) . '</span>' )
+		);
+		echo '<table class="form-table" role="presentation">';
+		echo '<tr><th>' . esc_html__( 'Formato (mm)', 'ghostwriter' ) . '</th><td>'
+			. '<input type="number" name="trim_width_mm" value="' . esc_attr( (string) ( $format['trim_width_mm'] ?? '' ) ) . '" style="width:90px"' . $lock . '/> × '
+			. '<input type="number" name="trim_height_mm" value="' . esc_attr( (string) ( $format['trim_height_mm'] ?? '' ) ) . '" style="width:90px"' . $lock . '/> '
+			. '<label style="margin-left:12px"><input type="checkbox" name="print_ready" value="1"' . checked( ! empty( $format['print_ready'] ), true, false ) . $lock . '/> ' . esc_html__( 'print-ready (300dpi, abbondanza)', 'ghostwriter' ) . '</label>'
+			. '<p class="description">' . esc_html__( 'Vincola copertina, risoluzione immagini e temi compatibili.', 'ghostwriter' ) . '</p></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Blocchi ammessi', 'ghostwriter' ) . '</th><td><fieldset class="gw-blocks-fieldset">';
+		foreach ( array( 'paragrafo', 'heading', 'citazione', 'box_approfondimento', 'figura', 'tabella', 'elenco', 'esercizio', 'codice', 'separatore' ) as $block ) {
+			echo '<label><input type="checkbox" name="allowed_blocks[]" value="' . esc_attr( $block ) . '"' . checked( in_array( $block, $allowed, true ), true, false ) . $lock . '/> ' . esc_html( $block ) . '</label>';
+		}
+		echo '</fieldset></td></tr>';
+		echo '</table>';
+		$this->box_close();
+
+		$this->box_open( esc_html__( 'Motore AI e budget', 'ghostwriter' ) );
+		echo '<table class="form-table" role="presentation">';
+		echo '<tr><th>' . esc_html__( 'Provider e modello', 'ghostwriter' ) . '</th><td><select name="provider">';
+		foreach ( array( 'anthropic' => 'Anthropic (Claude)', 'openai' => 'OpenAI', 'mock' => 'Mock (senza AI)' ) as $value => $label ) {
+			echo '<option value="' . esc_attr( $value ) . '"' . selected( (string) ( $ai['provider'] ?? '' ), $value, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select> <input type="text" name="model" value="' . esc_attr( (string) ( $ai['model'] ?? '' ) ) . '" class="regular-text"/>'
+			. '<p class="description">' . esc_html__( 'Vale per le prossime chiamate: i capitoli già generati restano.', 'ghostwriter' ) . '</p></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Immagini', 'ghostwriter' ) . '</th><td><select name="image_provider">'
+			. '<option value=""' . selected( (string) ( $ai['image_provider'] ?? '' ), '', false ) . '>' . esc_html__( '— nessuna generazione —', 'ghostwriter' ) . '</option>'
+			. '<option value="openai"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'openai', false ) . '>OpenAI</option>'
+			. '<option value="mock"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'mock', false ) . '>mock</option>'
+			. '</select> <input type="text" name="image_model" value="' . esc_attr( (string) ( $ai['image_model'] ?? '' ) ) . '" placeholder="gpt-image-1"/></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Budget massimo', 'ghostwriter' ) . '</th><td><input type="number" name="max_cost_eur" min="1" step="1" value="' . esc_attr( (string) ( $ai['budget']['max_cost_eur'] ?? '' ) ) . '" style="width:110px"/> €'
+			. '<p class="description">' . esc_html__( 'Vuoto = nessun limite. Al superamento la pipeline si ferma in paused_budget.', 'ghostwriter' ) . '</p></td></tr>';
+		echo '</table>';
+		$this->box_close();
+
+		echo '<p><button class="button button-primary">' . esc_html__( 'Salva impostazioni', 'ghostwriter' ) . '</button></p></form>';
 	}
 
 	private function render_pipeline_actions( int $project_id, string $state, bool $is_translation ): void {
