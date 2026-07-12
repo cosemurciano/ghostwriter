@@ -49,9 +49,18 @@ final class Dispatcher {
 		?callable $schedule_single = null,
 		?callable $has_scheduled = null
 	) {
-		$this->enqueue_async   = $enqueue_async ?? static fn( string $hook, array $args, string $group ) => \as_enqueue_async_action( $hook, $args, $group );
-		$this->schedule_single = $schedule_single ?? static fn( int $ts, string $hook, array $args, string $group ) => \as_schedule_single_action( $ts, $hook, $args, $group );
-		$this->has_scheduled   = $has_scheduled ?? static fn( string $hook, array $args, string $group ): bool => \as_has_scheduled_action( $hook, $args, $group );
+		$this->enqueue_async   = $enqueue_async ?? static function ( string $hook, array $args, string $group ) {
+			self::assert_scheduler_loaded();
+			return \as_enqueue_async_action( $hook, $args, $group );
+		};
+		$this->schedule_single = $schedule_single ?? static function ( int $ts, string $hook, array $args, string $group ) {
+			self::assert_scheduler_loaded();
+			return \as_schedule_single_action( $ts, $hook, $args, $group );
+		};
+		$this->has_scheduled   = $has_scheduled ?? static function ( string $hook, array $args, string $group ): bool {
+			self::assert_scheduler_loaded();
+			return \as_has_scheduled_action( $hook, $args, $group );
+		};
 	}
 
 	/**
@@ -75,6 +84,19 @@ final class Dispatcher {
 
 	public static function hook_for( string $job_name ): string {
 		return 'gw_job_' . $job_name;
+	}
+
+	/**
+	 * Errore esplicito (invece del fatal "undefined function") se Action
+	 * Scheduler non è inizializzato: succede se viene caricato dentro un
+	 * callback di plugins_loaded anziché nel file principale del plugin.
+	 */
+	private static function assert_scheduler_loaded(): void {
+		if ( ! function_exists( 'as_enqueue_async_action' ) ) {
+			throw new \RuntimeException(
+				'Action Scheduler non è inizializzato: impossibile accodare i lavori in background. Aggiorna Ghostwriter e riattiva il plugin; se persiste, verifica la cartella vendor/woocommerce/action-scheduler.'
+			);
+		}
 	}
 
 	/**

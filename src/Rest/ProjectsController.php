@@ -57,7 +57,7 @@ final class ProjectsController {
 			'/projects',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'create' ),
+				'callback'            => $this->guarded( 'create' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -67,7 +67,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'show' ),
+				'callback'            => $this->guarded( 'show' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -77,7 +77,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/sources',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'add_source' ),
+				'callback'            => $this->guarded( 'add_source' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -87,7 +87,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/settings',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'update_settings' ),
+				'callback'            => $this->guarded( 'update_settings' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -97,7 +97,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/sources/test',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'test_source' ),
+				'callback'            => $this->guarded( 'test_source' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -107,7 +107,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/vectorstore',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'update_vector_store' ),
+				'callback'            => $this->guarded( 'update_vector_store' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -117,7 +117,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/vectorstore/test',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'test_vector_store' ),
+				'callback'            => $this->guarded( 'test_vector_store' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -127,7 +127,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/queue',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'queue_status' ),
+				'callback'            => $this->guarded( 'queue_status' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -137,7 +137,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/outline/propose',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'propose_outline' ),
+				'callback'            => $this->guarded( 'propose_outline' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -147,7 +147,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/outline',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'update_outline' ),
+				'callback'            => $this->guarded( 'update_outline' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -157,7 +157,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/outline/approve',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'approve_outline' ),
+				'callback'            => $this->guarded( 'approve_outline' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -167,7 +167,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/derive',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'derive' ),
+				'callback'            => $this->guarded( 'derive' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -177,7 +177,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/glossary',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'update_glossary' ),
+				'callback'            => $this->guarded( 'update_glossary' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -187,7 +187,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/glossary/approve',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'approve_glossary' ),
+				'callback'            => $this->guarded( 'approve_glossary' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -197,7 +197,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/preflight',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'preflight' ),
+				'callback'            => $this->guarded( 'preflight' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::EXPORT ),
 			)
 		);
@@ -207,7 +207,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/cover',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'update_cover' ),
+				'callback'            => $this->guarded( 'update_cover' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -217,7 +217,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/cover/regenerate',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'regenerate_cover' ),
+				'callback'            => $this->guarded( 'regenerate_cover' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -227,7 +227,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/cover/approve',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'approve_cover' ),
+				'callback'            => $this->guarded( 'approve_cover' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -237,7 +237,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/advance',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'advance' ),
+				'callback'            => $this->guarded( 'advance' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::APPROVE_CONTENT ),
 			)
 		);
@@ -247,7 +247,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/budget/resume',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'resume_budget' ),
+				'callback'            => $this->guarded( 'resume_budget' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -257,7 +257,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/usage',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'usage' ),
+				'callback'            => $this->guarded( 'usage' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -267,7 +267,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/export',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'export' ),
+				'callback'            => $this->guarded( 'export' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::EXPORT ),
 			)
 		);
@@ -277,7 +277,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/exports',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'list_exports' ),
+				'callback'            => $this->guarded( 'list_exports' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::EXPORT ),
 			)
 		);
@@ -287,7 +287,7 @@ final class ProjectsController {
 			'/projects/(?P<id>\d+)/exports/(?P<file>[A-Za-z0-9._-]+)',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'download_export' ),
+				'callback'            => $this->guarded( 'download_export' ),
 				'permission_callback' => static fn(): bool => current_user_can( Capabilities::EXPORT ),
 			)
 		);
@@ -940,5 +940,24 @@ final class ProjectsController {
 
 	private static function not_found(): WP_Error {
 		return new WP_Error( 'gw_not_found', 'Progetto non trovato.', array( 'status' => 404 ) );
+	}
+
+	/**
+	 * Avvolge un callback REST: qualunque Throwable (incluse le Error fatali,
+	 * es. funzione non definita) diventa un errore JSON leggibile invece di
+	 * una risposta vuota con 500, che il client non saprebbe spiegare.
+	 */
+	private function guarded( string $method ): callable {
+		return function ( WP_REST_Request $request ) use ( $method ): WP_REST_Response|WP_Error {
+			try {
+				return $this->{$method}( $request );
+			} catch ( \Throwable $e ) {
+				return new WP_Error(
+					'gw_internal',
+					sprintf( 'Errore interno (%s): %s', $method, $e->getMessage() ),
+					array( 'status' => 500 )
+				);
+			}
+		};
 	}
 }

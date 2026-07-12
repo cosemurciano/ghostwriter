@@ -31,7 +31,7 @@ final class RegistryController {
 			'/themes',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'list_themes' ),
+				'callback'            => $this->guarded( 'list_themes' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -41,7 +41,7 @@ final class RegistryController {
 			'/themes/import',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'import_theme' ),
+				'callback'            => $this->guarded( 'import_theme' ),
 				'permission_callback' => $manage_settings,
 			)
 		);
@@ -51,7 +51,7 @@ final class RegistryController {
 			'/skills',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'list_skills' ),
+				'callback'            => $this->guarded( 'list_skills' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -61,9 +61,13 @@ final class RegistryController {
 			'/skills/(?P<skill_id>[A-Za-z0-9._-]+)/(?P<version>[A-Za-z0-9._-]+)',
 			array(
 				'methods'             => 'DELETE',
-				'callback'            => function ( WP_REST_Request $request ): WP_REST_Response {
-					$this->skills->delete( (string) $request['skill_id'], (string) $request['version'] );
-					return new WP_REST_Response( array( 'deleted' => true ) );
+				'callback'            => function ( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+					try {
+						$this->skills->delete( (string) $request['skill_id'], (string) $request['version'] );
+						return new WP_REST_Response( array( 'deleted' => true ) );
+					} catch ( \Throwable $e ) {
+						return new WP_Error( 'gw_internal', 'Errore interno (delete_skill): ' . $e->getMessage(), array( 'status' => 500 ) );
+					}
 				},
 				'permission_callback' => $manage_settings,
 			)
@@ -74,7 +78,7 @@ final class RegistryController {
 			'/skills/import',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'import_skill' ),
+				'callback'            => $this->guarded( 'import_skill' ),
 				'permission_callback' => $manage_settings,
 			)
 		);
@@ -154,5 +158,23 @@ final class RegistryController {
 		}
 
 		return new WP_REST_Response( array( 'skill_id' => $skill_id, 'version' => $version ), 201 );
+	}
+
+	/**
+	 * Avvolge un callback REST: qualunque Throwable diventa un errore JSON
+	 * leggibile invece di una risposta vuota con 500.
+	 */
+	private function guarded( string $method ): callable {
+		return function ( WP_REST_Request $request ) use ( $method ): WP_REST_Response|WP_Error {
+			try {
+				return $this->{$method}( $request );
+			} catch ( \Throwable $e ) {
+				return new WP_Error(
+					'gw_internal',
+					sprintf( 'Errore interno (%s): %s', $method, $e->getMessage() ),
+					array( 'status' => 500 )
+				);
+			}
+		};
 	}
 }

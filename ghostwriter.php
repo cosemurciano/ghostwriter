@@ -16,10 +16,20 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'GHOSTWRITER_VERSION', '0.3.5' );
+define( 'GHOSTWRITER_VERSION', '0.3.6' );
 define( 'GHOSTWRITER_PLUGIN_FILE', __FILE__ );
 define( 'GHOSTWRITER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GHOSTWRITER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+// Action Scheduler va caricato QUI, nel file principale del plugin: il suo
+// bootstrap si aggancia a plugins_loaded (priorità 0/1), quindi caricarlo
+// dentro un callback di plugins_loaded lo lascerebbe inerte e le funzioni
+// as_*() non esisterebbero (fatal al primo accodamento di un job).
+$gw_action_scheduler = GHOSTWRITER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
+if ( file_exists( $gw_action_scheduler ) ) {
+	require_once $gw_action_scheduler;
+}
+unset( $gw_action_scheduler );
 
 /**
  * Verifica i requisiti minimi. Se mancano, il plugin non si avvia
