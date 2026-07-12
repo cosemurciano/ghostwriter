@@ -332,6 +332,20 @@
 	border-left-color: #dba617 !important;
 }
 
+.gw-log-detail {
+	color: #d63638;
+	font-size: 12px;
+	word-break: break-word;
+}
+
+/* --- Tab Skills del progetto --- */
+
+.gw-phase-check {
+	display: inline-block;
+	margin: 0 10px 4px 0;
+	white-space: nowrap;
+}
+
 /* --- Creazione progetto --- */
 
 .gw-new-project {

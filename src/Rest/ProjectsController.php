@@ -405,6 +405,21 @@ final class ProjectsController {
 			}
 		}
 
+		$skills = $request->get_param( 'skills' );
+		if ( is_array( $skills ) ) {
+			$config['skills'] = array();
+			foreach ( $skills as $entry ) {
+				if ( ! is_array( $entry ) || '' === (string) ( $entry['skill_id'] ?? '' ) ) {
+					continue;
+				}
+				$config['skills'][] = array(
+					'skill_id' => (string) preg_replace( '/[^A-Za-z0-9._-]/', '', (string) $entry['skill_id'] ),
+					'version'  => (string) preg_replace( '/[^A-Za-z0-9._-]/', '', (string) ( $entry['version'] ?? 'latest' ) ),
+					'phases'   => array_values( array_map( 'sanitize_key', (array) ( $entry['phases'] ?? array() ) ) ),
+				);
+			}
+		}
+
 		try {
 			$this->projects->save_config( $project_id, $config );
 		} catch ( SchemaValidationException $e ) {

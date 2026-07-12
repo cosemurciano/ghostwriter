@@ -113,6 +113,65 @@ final class AiLayerTest extends TestCase {
 		$composer->compose( new AiRequest( AiRequest::PHASE_DRAFT, array(), 7, 12 ) );
 	}
 
+	// --- SkillsManager: import da zip --------------------------------------
+
+	public function test_import_zip_reads_frontmatter_and_installs_bundle(): void {
+		$zip_path = $this->make_skill_zip(
+			'stile-manuale-pratico',
+			<<<'MD'
+			---
+			name: stile-manuale-pratico
+			description: >-
+			  Stile per manuali pratici: frasi brevi,
+			  esempi concreti dopo ogni concetto.
+			license: Proprietary.
+			metadata:
+			  version: 1.0.0
+			  x-ghostwriter:
+			    default_phases: [draft, review, rewrite]
+			---
+			# Stile manuale pratico
+			Corpo della skill.
+			MD,
+			array( 'examples/apertura-capitolo.md' => '# Esempio' )
+		);
+
+		$skills = new SkillsManager( $this->skills_dir );
+		$result = $skills->import_zip( $zip_path );
+
+		self::assertSame( array( 'skill_id' => 'stile-manuale-pratico', 'version' => '1.0.0' ), $result );
+		self::assertStringContainsString( 'Corpo della skill.', (string) $skills->get_content( 'stile-manuale-pratico', '1.0.0' ) );
+		self::assertFileExists( $this->skills_dir . '/stile-manuale-pratico/1.0.0/examples/apertura-capitolo.md' );
+
+		$meta = $skills->describe( 'stile-manuale-pratico', '1.0.0' );
+		self::assertSame( 'stile-manuale-pratico', $meta['name'] );
+		self::assertSame( array( 'draft', 'review', 'rewrite' ), $meta['default_phases'] );
+		self::assertStringContainsString( 'frasi brevi', $meta['description'] );
+
+		$skills->delete( 'stile-manuale-pratico', '1.0.0' );
+		self::assertNull( $skills->get_content( 'stile-manuale-pratico', '1.0.0' ) );
+	}
+
+	public function test_import_zip_rejects_php_payloads(): void {
+		$zip_path = $this->make_skill_zip( 'malizia', "---\nname: malizia\n---\nCorpo", array( 'shell.php' => '<?php evil();' ) );
+
+		$this->expectException( \RuntimeException::class );
+		( new SkillsManager( $this->skills_dir ) )->import_zip( $zip_path );
+	}
+
+	/** @param array<string, string> $extra_files */
+	private function make_skill_zip( string $folder, string $skill_md, array $extra_files = array() ): string {
+		$zip_path = sys_get_temp_dir() . '/gw-zip-' . bin2hex( random_bytes( 4 ) ) . '.zip';
+		$zip      = new \ZipArchive();
+		$zip->open( $zip_path, \ZipArchive::CREATE );
+		$zip->addFromString( $folder . '/SKILL.md', $skill_md );
+		foreach ( $extra_files as $name => $content ) {
+			$zip->addFromString( $folder . '/' . $name, $content );
+		}
+		$zip->close();
+		return $zip_path;
+	}
+
 	// --- PhaseSchemas -----------------------------------------------------
 
 	public function test_block_schema_is_self_contained(): void {
