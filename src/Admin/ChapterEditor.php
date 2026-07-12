@@ -57,7 +57,7 @@ final class ChapterEditor {
 
 		$css = '
 			html { background: #fff; }
-			body#tinymce { font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.75; color: #1d2327; max-width: 44em; margin: 0 auto !important; padding: 24px 28px !important; }
+				body#tinymce { font-family: Georgia, serif; font-size: 18px; line-height: 1.75; color: #1d2327; max-width: 44em; margin: 0 auto !important; padding: 24px 28px !important; }
 			body#tinymce p { margin: 0 0 1em; }
 			body#tinymce h2, body#tinymce h3, body#tinymce h4 { font-family: Georgia, serif; line-height: 1.3; margin: 1.6em 0 0.6em; }
 			body#tinymce blockquote { border-left: 3px solid #c3c4c7; margin: 1.2em 0; padding: 0.2em 0 0.2em 1.2em; font-style: italic; color: #3c434a; }
@@ -73,7 +73,12 @@ final class ChapterEditor {
 			body#tinymce .gw-figura-placeholder { border: 1px dashed #c3c4c7; border-radius: 4px; padding: 14px; color: #646970; }
 		';
 
-		$settings['content_style'] = trim( ( $settings['content_style'] ?? '' ) . ' ' . preg_replace( '/\s+/', ' ', $css ) );
+		// MAI virgolette doppie qui: _WP_Editors::_parse_init serializza i
+		// valori stringa dentro doppi apici SENZA escaping — una " nel CSS
+		// rompe l'oggetto di init e TinyMCE non parte (editor visuale morto).
+		$css = str_replace( '"', "'", (string) preg_replace( '/\s+/', ' ', $css ) );
+
+		$settings['content_style'] = trim( ( $settings['content_style'] ?? '' ) . ' ' . $css );
 		return $settings;
 	}
 
