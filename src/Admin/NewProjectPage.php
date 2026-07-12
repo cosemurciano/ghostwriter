@@ -56,12 +56,8 @@ final class NewProjectPage {
 		echo '<table class="form-table" role="presentation">';
 		$this->row(
 			__( 'Formato fisico', 'ghostwriter' ),
-			'<select name="format_preset" onchange="const [w,h]=this.value.split(\'x\');this.form.trim_width_mm.value=w;this.form.trim_height_mm.value=h;">'
-			. '<option value="150x230">15 × 23 cm — ' . esc_html__( 'standard saggistica', 'ghostwriter' ) . '</option>'
-			. '<option value="148x210">A5 (14,8 × 21 cm)</option>'
-			. '<option value="170x240">17 × 24 cm — ' . esc_html__( 'manuali illustrati', 'ghostwriter' ) . '</option>'
-			. '</select><input type="hidden" name="trim_width_mm" value="150"/><input type="hidden" name="trim_height_mm" value="230"/>',
-			__( 'Fissato all\'avvio: vincola copertina e risoluzione immagini. L\'ePub è reflowable e lo ignora.', 'ghostwriter' )
+			self::format_picker( 152, 229, '' ),
+			__( 'I tre formati più usati su Amazon KDP, o dimensioni personalizzate. Fissato all\'avvio: vincola copertina e risoluzione immagini. L\'ePub è reflowable e lo ignora.', 'ghostwriter' )
 		);
 
 		$blocks_html = '<fieldset class="gw-blocks-fieldset">';
@@ -135,5 +131,33 @@ final class NewProjectPage {
 			echo '<p class="description">' . esc_html( $description ) . '</p>';
 		}
 		echo '</td></tr>';
+	}
+
+	/**
+	 * I tre trim size più usati su Amazon KDP + scelta personalizzata.
+	 * Il markup è condiviso col dettaglio progetto (stessi name e classi:
+	 * il toggle del campo custom vive in gw-admin.js).
+	 */
+	public static function format_picker( float $width, float $height, string $lock ): string {
+		$presets = array(
+			'152x229' => __( '6″ × 9″ (15,2 × 22,9 cm) — il più usato su Amazon', 'ghostwriter' ),
+			'127x203' => __( '5″ × 8″ (12,7 × 20,3 cm) — romanzi e narrativa', 'ghostwriter' ),
+			'140x216' => __( '5,5″ × 8,5″ (14 × 21,6 cm) — saggistica e memoir', 'ghostwriter' ),
+		);
+
+		$current = ( (int) round( $width ) ) . 'x' . ( (int) round( $height ) );
+		$custom  = ! isset( $presets[ $current ] );
+
+		$html = '<select name="format_preset" class="gw-format-preset"' . $lock . '>';
+		foreach ( $presets as $value => $label ) {
+			$html .= '<option value="' . esc_attr( $value ) . '"' . selected( $current, $value, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		$html .= '<option value="custom"' . selected( $custom, true, false ) . '>' . esc_html__( 'Personalizzato…', 'ghostwriter' ) . '</option></select>';
+
+		$html .= ' <span class="gw-format-custom"' . ( $custom ? '' : ' style="display:none"' ) . '>'
+			. '<input type="number" name="trim_width_mm" min="80" step="1" value="' . esc_attr( (string) $width ) . '" style="width:80px"' . $lock . '/> × '
+			. '<input type="number" name="trim_height_mm" min="100" step="1" value="' . esc_attr( (string) $height ) . '" style="width:80px"' . $lock . '/> mm</span>';
+
+		return $html;
 	}
 }

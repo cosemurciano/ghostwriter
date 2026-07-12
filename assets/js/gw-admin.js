@@ -650,6 +650,117 @@
 		table.appendChild( row );
 	} );
 
+	// Formato libro: i preset compilano i campi mm, "Personalizzato" li mostra.
+	document.addEventListener( 'change', function ( event ) {
+		var select = event.target.closest( '.gw-format-preset' );
+		if ( ! select ) {
+			return;
+		}
+		var custom = 'custom' === select.value;
+		var wrap = select.parentNode.querySelector( '.gw-format-custom' );
+		if ( wrap ) {
+			wrap.style.display = custom ? '' : 'none';
+		}
+		if ( ! custom ) {
+			var dims = select.value.split( 'x' );
+			var scope = select.closest( 'form' ) || document;
+			var width = scope.querySelector( '[name="trim_width_mm"]' );
+			var height = scope.querySelector( '[name="trim_height_mm"]' );
+			if ( width && height ) {
+				width.value = dims[ 0 ];
+				height.value = dims[ 1 ];
+			}
+		}
+	} );
+
+	// "Immagine AI" nell'editor del capitolo: modale prompt+dimensione,
+	// generazione in coda, polling e inserimento della figura nel testo.
+	( function () {
+		var modal = document.getElementById( 'gw-ai-image-modal' );
+		if ( ! modal ) {
+			return;
+		}
+		var chapterId = modal.getAttribute( 'data-gw-image-chapter' );
+		var generate = document.getElementById( 'gw-ai-image-generate' );
+		var status = modal.querySelector( '.gw-ai-image-status' );
+
+		function toggle( show ) {
+			modal.style.display = show ? '' : 'none';
+		}
+
+		document.addEventListener( 'click', function ( event ) {
+			if ( event.target.closest( '#gw-ai-image-open' ) ) {
+				event.preventDefault();
+				toggle( true );
+			}
+			if ( event.target.closest( '#gw-ai-image-cancel' ) || event.target.classList.contains( 'gw-modal-backdrop' ) ) {
+				toggle( false );
+			}
+		} );
+
+		function insertFigure( data, size ) {
+			var html = '<figure data-gw-type="figura"><img class="wp-image-' + data.attachment_id + '" data-gw-size="' + size + '" src="' + data.url + '" alt=""/>'
+				+ '<figcaption></figcaption></figure><p>&nbsp;</p>';
+			window.wpActiveEditor = 'content';
+			if ( window.send_to_editor ) {
+				window.send_to_editor( html );
+			} else {
+				var textarea = document.getElementById( 'content' );
+				if ( textarea ) {
+					textarea.value += '\n\n' + html;
+				}
+			}
+		}
+
+		function poll( requestId, size ) {
+			api( '/chapters/' + chapterId + '/image/' + requestId ).then( function ( data ) {
+				if ( 'ready' === data.status ) {
+					insertFigure( data, size );
+					generate.disabled = false;
+					status.style.display = 'none';
+					toggle( false );
+					notify( 'Immagine inserita nel capitolo.', false );
+					return;
+				}
+				if ( 'error' === data.status ) {
+					generate.disabled = false;
+					status.style.display = 'none';
+					notify( cfg.i18n.error + ': ' + data.message, true );
+					return;
+				}
+				window.setTimeout( function () {
+					poll( requestId, size );
+				}, 5000 );
+			} ).catch( function () {
+				window.setTimeout( function () {
+					poll( requestId, size );
+				}, 15000 );
+			} );
+		}
+
+		if ( generate ) {
+			generate.addEventListener( 'click', function () {
+				var prompt = document.getElementById( 'gw-ai-image-prompt' ).value.trim();
+				var size = document.getElementById( 'gw-ai-image-size' ).value;
+				if ( ! prompt ) {
+					notify( cfg.i18n.error + ': descrivi l\'immagine da generare.', true );
+					return;
+				}
+				generate.disabled = true;
+				status.style.display = '';
+				api( '/chapters/' + chapterId + '/image', 'POST', { prompt: prompt, size: size } )
+					.then( function ( data ) {
+						poll( data.request_id, size );
+					} )
+					.catch( function ( error ) {
+						generate.disabled = false;
+						status.style.display = 'none';
+						notify( cfg.i18n.error + ': ' + error.message, true );
+					} );
+			} );
+		}
+	}() );
+
 	// Widget "Lavori in corso": polling di GET /projects/{id}/queue. Aggiorna
 	// la lista dei job attivi (tentativo, prossimo passaggio) e ricarica la
 	// pagina quando lo stato del progetto cambia o la coda si svuota.

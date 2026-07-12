@@ -184,6 +184,7 @@ class ComposerStaticInit732305a0cea106f701f5fa709f8e634b
         'Ghostwriter\\Queue\\Jobs\\CoverComposeJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/CoverComposeJob.php',
         'Ghostwriter\\Queue\\Jobs\\DraftChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/DraftChapterJob.php',
         'Ghostwriter\\Queue\\Jobs\\ExportJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/ExportJob.php',
+        'Ghostwriter\\Queue\\Jobs\\GenerateEditorImageJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/GenerateEditorImageJob.php',
         'Ghostwriter\\Queue\\Jobs\\GenerateImageJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/GenerateImageJob.php',
         'Ghostwriter\\Queue\\Jobs\\IndexChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/IndexChapterJob.php',
         'Ghostwriter\\Queue\\Jobs\\IngestSourcesJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/IngestSourcesJob.php',

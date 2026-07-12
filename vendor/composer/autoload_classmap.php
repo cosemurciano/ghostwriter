@@ -80,6 +80,7 @@ return array(
     'Ghostwriter\\Queue\\Jobs\\CoverComposeJob' => $baseDir . '/src/Queue/Jobs/CoverComposeJob.php',
     'Ghostwriter\\Queue\\Jobs\\DraftChapterJob' => $baseDir . '/src/Queue/Jobs/DraftChapterJob.php',
     'Ghostwriter\\Queue\\Jobs\\ExportJob' => $baseDir . '/src/Queue/Jobs/ExportJob.php',
+    'Ghostwriter\\Queue\\Jobs\\GenerateEditorImageJob' => $baseDir . '/src/Queue/Jobs/GenerateEditorImageJob.php',
     'Ghostwriter\\Queue\\Jobs\\GenerateImageJob' => $baseDir . '/src/Queue/Jobs/GenerateImageJob.php',
     'Ghostwriter\\Queue\\Jobs\\IndexChapterJob' => $baseDir . '/src/Queue/Jobs/IndexChapterJob.php',
     'Ghostwriter\\Queue\\Jobs\\IngestSourcesJob' => $baseDir . '/src/Queue/Jobs/IngestSourcesJob.php',

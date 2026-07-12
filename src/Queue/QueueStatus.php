@@ -127,6 +127,7 @@ final class QueueStatus {
 			'rewrite_block'        => __( 'Riscrittura blocco', 'ghostwriter' ),
 			'synopsis'             => __( 'Sinossi capitolo', 'ghostwriter' ),
 			'generate_image'       => __( 'Generazione immagine', 'ghostwriter' ),
+			'editor_image'         => __( 'Immagine AI dall\'editor', 'ghostwriter' ),
 			'ingest_source'        => __( 'Ingestione fonti', 'ghostwriter' ),
 			'index_chapter'        => __( 'Indicizzazione capitolo (RAG)', 'ghostwriter' ),
 			'cover_brief'          => __( 'Copertina: brief creativo', 'ghostwriter' ),

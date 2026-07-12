@@ -74,7 +74,7 @@ final class EditorProjection {
 				$img           = '';
 				if ( $attachment_id > 0 ) {
 					$src = (string) wp_get_attachment_url( $attachment_id );
-					$img = '<img class="wp-image-' . $attachment_id . '" src="' . esc_url( $src ) . '" alt="' . esc_attr( (string) ( $props['alt'] ?? '' ) ) . '"/>';
+					$img = '<img class="wp-image-' . $attachment_id . '" data-gw-size="' . esc_attr( (string) ( $props['size'] ?? 'medium' ) ) . '" src="' . esc_url( $src ) . '" alt="' . esc_attr( (string) ( $props['alt'] ?? '' ) ) . '"/>';
 				} else {
 					$img = '<p class="gw-figura-placeholder"><em>' . esc_html( '[Figura da generare/caricare' . ( ! empty( $props['image_brief'] ) ? ': ' . (string) $props['image_brief'] : '' ) . ']' ) . '</em></p>';
 				}
@@ -381,6 +381,10 @@ final class EditorProjection {
 			$alt = (string) $img->getAttribute( 'alt' );
 			if ( '' !== $alt ) {
 				$props['alt'] = $alt;
+			}
+			$size = (string) $img->getAttribute( 'data-gw-size' );
+			if ( in_array( $size, array( 'small', 'medium', 'full' ), true ) ) {
+				$props['size'] = $size;
 			}
 		}
 

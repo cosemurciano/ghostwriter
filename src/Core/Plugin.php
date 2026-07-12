@@ -29,6 +29,7 @@ use Ghostwriter\Queue\Jobs\CoverBriefJob;
 use Ghostwriter\Queue\Jobs\CoverComposeJob;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\ExportJob;
+use Ghostwriter\Queue\Jobs\GenerateEditorImageJob;
 use Ghostwriter\Queue\Jobs\GenerateImageJob;
 use Ghostwriter\Queue\Jobs\IndexChapterJob;
 use Ghostwriter\Queue\Jobs\IngestSourcesJob;
@@ -336,6 +337,7 @@ final class Plugin {
 		SynopsisJob::class,
 		ReviewChapterJob::class,
 		ReviseChapterJob::class,
+		GenerateEditorImageJob::class,
 		RewriteBlockJob::class,
 		GenerateImageJob::class,
 		IngestSourcesJob::class,
@@ -415,6 +417,14 @@ final class Plugin {
 				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class ),
 				fn( string $class, array $args ) => $this->get( Dispatcher::class )->dispatch( $class, $args )
+			),
+			GenerateEditorImageJob::class => new GenerateEditorImageJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
+				$this->get( ImageService::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
 			),
 			GenerateImageJob::class      => new GenerateImageJob(
 				$this->get( ProviderInterface::class ),
