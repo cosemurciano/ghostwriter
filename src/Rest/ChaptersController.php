@@ -8,6 +8,7 @@ use Ghostwriter\Domain\BlockRevisionService;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
+use Ghostwriter\Queue\Jobs\ReviseChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Repository\ChapterRepository;
 use WP_Error;
@@ -48,6 +49,16 @@ final class ChaptersController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => $this->guarded( 'draft' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/revise',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'revise' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -144,6 +155,42 @@ final class ChaptersController {
 		$this->dispatcher->dispatch(
 			DraftChapterJob::class,
 			array( 'project_id' => $project_id, 'chapter_id' => $chapter_id )
+		);
+
+		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Riscrittura del capitolo (e opzionalmente del titolo) su istruzioni
+	 * dell'utente: l'area prompt nell'editor del capitolo.
+	 */
+	public function revise( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		$project_id = $this->chapters->get_project_id( $chapter_id );
+		if ( PipelineRouter::is_stopped( $project_id ) ) {
+			return new WP_Error( 'gw_pipeline_stopped', 'Elaborazione ferma: riprendila prima di chiedere riscritture.', array( 'status' => 409 ) );
+		}
+		if ( null === $this->chapters->get_content( $chapter_id ) ) {
+			return new WP_Error( 'gw_no_content', 'Il capitolo non ha ancora contenuto: scrivilo prima con "Scrivi (AI)" o nell\'editor.', array( 'status' => 409 ) );
+		}
+
+		$feedback = trim( sanitize_textarea_field( (string) $request->get_param( 'feedback' ) ) );
+		if ( '' === $feedback ) {
+			return new WP_Error( 'gw_invalid_params', 'Scrivi le istruzioni per la riscrittura.', array( 'status' => 400 ) );
+		}
+
+		$this->dispatcher->dispatch(
+			ReviseChapterJob::class,
+			array(
+				'project_id'  => $project_id,
+				'chapter_id'  => $chapter_id,
+				'feedback'    => $feedback,
+				'allow_title' => (bool) $request->get_param( 'allow_title' ),
+			)
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );

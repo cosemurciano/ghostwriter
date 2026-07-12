@@ -123,6 +123,7 @@ final class QueueStatus {
 			'materialize_chapters' => __( 'Creazione capitoli dall\'indice', 'ghostwriter' ),
 			'draft_chapter'        => __( 'Stesura capitolo', 'ghostwriter' ),
 			'review_chapter'       => __( 'Revisione capitolo', 'ghostwriter' ),
+			'revise_chapter'       => __( 'Riscrittura capitolo (istruzioni utente)', 'ghostwriter' ),
 			'rewrite_block'        => __( 'Riscrittura blocco', 'ghostwriter' ),
 			'synopsis'             => __( 'Sinossi capitolo', 'ghostwriter' ),
 			'generate_image'       => __( 'Generazione immagine', 'ghostwriter' ),

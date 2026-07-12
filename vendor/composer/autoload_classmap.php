@@ -87,6 +87,7 @@ return array(
     'Ghostwriter\\Queue\\Jobs\\ProposeGlossaryJob' => $baseDir . '/src/Queue/Jobs/ProposeGlossaryJob.php',
     'Ghostwriter\\Queue\\Jobs\\ProposeOutlineJob' => $baseDir . '/src/Queue/Jobs/ProposeOutlineJob.php',
     'Ghostwriter\\Queue\\Jobs\\ReviewChapterJob' => $baseDir . '/src/Queue/Jobs/ReviewChapterJob.php',
+    'Ghostwriter\\Queue\\Jobs\\ReviseChapterJob' => $baseDir . '/src/Queue/Jobs/ReviseChapterJob.php',
     'Ghostwriter\\Queue\\Jobs\\RewriteBlockJob' => $baseDir . '/src/Queue/Jobs/RewriteBlockJob.php',
     'Ghostwriter\\Queue\\Jobs\\SynopsisJob' => $baseDir . '/src/Queue/Jobs/SynopsisJob.php',
     'Ghostwriter\\Queue\\Jobs\\TranslateChapterJob' => $baseDir . '/src/Queue/Jobs/TranslateChapterJob.php',

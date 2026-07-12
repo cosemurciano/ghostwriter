@@ -798,6 +798,8 @@ final class ProjectsPage {
 			'budget_exceeded'         => __( 'Budget superato: pipeline in pausa', 'ghostwriter' ),
 			'budget_still_exceeded'   => __( 'Budget ancora superato', 'ghostwriter' ),
 			'budget_resumed'          => __( 'Pipeline ripresa dopo pausa budget', 'ghostwriter' ),
+			'chapter_revised'         => __( 'Capitolo riscritto su istruzioni utente', 'ghostwriter' ),
+			'chapter_revise_failed'   => __( 'Riscrittura capitolo fallita', 'ghostwriter' ),
 			'pipeline_stopped'        => __( 'Elaborazione fermata dall\'utente', 'ghostwriter' ),
 			'pipeline_resumed'        => __( 'Elaborazione ripresa', 'ghostwriter' ),
 			'translation_started'     => __( 'Traduzione avviata', 'ghostwriter' ),

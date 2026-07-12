@@ -106,10 +106,34 @@
 			body[ el.getAttribute( 'data-gw-from-input' ) ] = input ? input.value : '';
 		}
 
+		// data-gw-collect='{"chiave":"#selettore"}': valori da campi della
+		// pagina (textarea → stringa, checkbox → booleano). Usato dove un
+		// form annidato non è possibile (es. meta box dell'editor).
+		if ( el.hasAttribute( 'data-gw-collect' ) ) {
+			body = body || {};
+			var map = JSON.parse( el.getAttribute( 'data-gw-collect' ) );
+			Object.keys( map ).forEach( function ( key ) {
+				var field = document.querySelector( map[ key ] );
+				if ( field ) {
+					body[ key ] = 'checkbox' === field.type ? field.checked : field.value;
+				}
+			} );
+			if ( 'feedback' in body && ! String( body.feedback ).trim() ) {
+				notify( cfg.i18n.feedback, true );
+				return;
+			}
+		}
+
 		el.disabled = true;
 		api( path, method, body )
 			.then( function ( data ) {
 				el.disabled = false;
+				var watch = el.closest( '[data-gw-revise-watch]' );
+				if ( watch ) {
+					notify( cfg.i18n.queued, false );
+					startReviseWatch( watch, el );
+					return;
+				}
 				if ( el.hasAttribute( 'data-gw-noreload' ) ) {
 					notify( ( data && data.message ) ? data.message : 'OK', false );
 					return;
@@ -122,6 +146,34 @@
 				notify( cfg.i18n.error + ': ' + error.message, true );
 			} );
 	} );
+
+	// Assistente AI del capitolo: dopo l'accodamento si osserva il contenuto
+	// e si ricarica la pagina quando la riscrittura è arrivata.
+	function startReviseWatch( watch, button ) {
+		var chapterId = watch.getAttribute( 'data-gw-revise-watch' );
+		var status = watch.querySelector( '.gw-assistant-status' );
+		if ( status ) {
+			status.style.display = '';
+		}
+		button.disabled = true;
+
+		var snapshot = null;
+		function poll() {
+			api( '/chapters/' + chapterId ).then( function ( chapter ) {
+				var current = JSON.stringify( chapter.content || null );
+				if ( null === snapshot ) {
+					snapshot = current;
+				} else if ( current !== snapshot ) {
+					window.location.reload();
+					return;
+				}
+				window.setTimeout( poll, 8000 );
+			} ).catch( function () {
+				window.setTimeout( poll, 20000 );
+			} );
+		}
+		poll();
+	}
 
 	// Tab del progetto: sempre cliccabili, stato ricordato nell'hash.
 	document.addEventListener( 'click', function ( event ) {

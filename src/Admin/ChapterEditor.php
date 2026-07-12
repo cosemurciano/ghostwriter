@@ -31,6 +31,44 @@ final class ChapterEditor {
 		add_action( 'save_post_' . PostTypes::CHAPTER, array( $this, 'on_editor_save' ), 20, 3 );
 		add_action( 'edit_form_after_title', array( $this, 'render_hint' ) );
 		add_action( 'admin_notices', array( $this, 'render_notice' ) );
+		add_action( 'add_meta_boxes_' . PostTypes::CHAPTER, array( $this, 'register_meta_box' ) );
+	}
+
+	public function register_meta_box(): void {
+		add_meta_box(
+			'gw-chapter-assistant',
+			__( 'Assistente AI', 'ghostwriter' ),
+			array( $this, 'render_assistant_box' ),
+			PostTypes::CHAPTER,
+			'side',
+			'high'
+		);
+	}
+
+	/**
+	 * Area prompt nella colonna destra: istruzioni libere all'agente per
+	 * riscrivere il capitolo (e, se richiesto, il titolo). La richiesta va
+	 * in coda; al termine la pagina si ricarica da sola col nuovo testo.
+	 */
+	public function render_assistant_box( \WP_Post $post ): void {
+		$has_content = null !== $this->chapters->get_content( $post->ID );
+
+		echo '<div class="gw-assistant" data-gw-revise-watch="' . (int) $post->ID . '">';
+
+		if ( ! $has_content ) {
+			echo '<p class="gw-muted">' . esc_html__( 'Il capitolo non ha ancora contenuto: scrivilo con "Scrivi (AI)" dal progetto, oppure inizia a scriverlo qui e salva.', 'ghostwriter' ) . '</p></div>';
+			return;
+		}
+
+		echo '<p class="gw-muted" style="margin-top:0">' . esc_html__( 'Di\' all\'agente cosa cambiare: la riscrittura rispetta dossier, skills e struttura a blocchi del libro.', 'ghostwriter' ) . '</p>'
+			. '<textarea id="gw-ai-feedback" rows="5" style="width:100%" placeholder="' . esc_attr__( 'Es.: accorcia l\'introduzione, aggiungi un esempio pratico sul secondo concetto, tono meno accademico…', 'ghostwriter' ) . '"></textarea>'
+			. '<p><label><input type="checkbox" id="gw-ai-title"/> ' . esc_html__( 'Può riscrivere anche il titolo', 'ghostwriter' ) . '</label></p>'
+			. '<p><button type="button" class="button button-primary" style="width:100%" data-gw-action="POST /chapters/' . (int) $post->ID . '/revise" data-gw-confirm'
+			. ' data-gw-collect=\'{"feedback":"#gw-ai-feedback","allow_title":"#gw-ai-title"}\'>'
+			. esc_html__( 'Riscrivi con l\'AI', 'ghostwriter' ) . '</button></p>'
+			. '<p class="gw-muted gw-assistant-status" style="display:none"><span class="spinner is-active" style="float:none;margin:0 4px 0 0"></span>'
+			. esc_html__( 'Riscrittura in corso: la pagina si ricarica da sola al termine. Non salvare nel frattempo.', 'ghostwriter' ) . '</p>'
+			. '</div>';
 	}
 
 	/**

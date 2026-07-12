@@ -36,6 +36,7 @@ use Ghostwriter\Queue\Jobs\MaterializeChaptersJob;
 use Ghostwriter\Queue\Jobs\ProposeGlossaryJob;
 use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
 use Ghostwriter\Queue\Jobs\ReviewChapterJob;
+use Ghostwriter\Queue\Jobs\ReviseChapterJob;
 use Ghostwriter\Queue\Jobs\RewriteBlockJob;
 use Ghostwriter\Queue\Jobs\SynopsisJob;
 use Ghostwriter\Queue\Jobs\TranslateChapterJob;
@@ -330,6 +331,7 @@ final class Plugin {
 		DraftChapterJob::class,
 		SynopsisJob::class,
 		ReviewChapterJob::class,
+		ReviseChapterJob::class,
 		RewriteBlockJob::class,
 		GenerateImageJob::class,
 		IngestSourcesJob::class,
@@ -388,6 +390,14 @@ final class Plugin {
 				$this->get( ProjectRepository::class ),
 				$this->get( ChapterRepository::class ),
 				$this->get( StateMachine::class ),
+				$this->get( SchemaValidator::class ),
+				$this->get( UsageMeter::class ),
+				$this->get( LogRepository::class )
+			),
+			ReviseChapterJob::class      => new ReviseChapterJob(
+				$this->get( ProviderInterface::class ),
+				$this->get( ProjectRepository::class ),
+				$this->get( ChapterRepository::class ),
 				$this->get( SchemaValidator::class ),
 				$this->get( UsageMeter::class ),
 				$this->get( LogRepository::class )
