@@ -149,6 +149,8 @@ final class Menu {
 					'queued'   => __( 'Operazione accodata. La pagina si ricarica…', 'ghostwriter' ),
 					'error'    => __( 'Errore', 'ghostwriter' ),
 					'feedback' => __( 'Descrivi cosa non va nel blocco (il feedback guida la riscrittura):', 'ghostwriter' ),
+					'emptyResponse' => __( 'risposta vuota dal server: probabile errore PHP, controlla il log del sito e la tab Costi e attività.', 'ghostwriter' ),
+					'badResponse'   => __( 'Risposta non valida dal server:', 'ghostwriter' ),
 					'queue'    => array(
 						'running'   => __( 'in esecuzione', 'ghostwriter' ),
 						'queued'    => __( 'in coda', 'ghostwriter' ),

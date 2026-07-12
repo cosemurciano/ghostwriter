@@ -33,7 +33,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'show' ),
+				'callback'            => $this->guarded( 'show' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -43,7 +43,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)/retry',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'retry' ),
+				'callback'            => $this->guarded( 'retry' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -53,7 +53,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)/blocks/(?P<block_id>[A-Za-z0-9_-]+)/rewrite',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'rewrite_block' ),
+				'callback'            => $this->guarded( 'rewrite_block' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -63,7 +63,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)/blocks/(?P<block_id>[A-Za-z0-9_-]+)/versions',
 			array(
 				'methods'             => 'GET',
-				'callback'            => array( $this, 'block_versions' ),
+				'callback'            => $this->guarded( 'block_versions' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -73,7 +73,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)/blocks/(?P<block_id>[A-Za-z0-9_-]+)/restore',
 			array(
 				'methods'             => 'POST',
-				'callback'            => array( $this, 'restore_block' ),
+				'callback'            => $this->guarded( 'restore_block' ),
 				'permission_callback' => $approve,
 			)
 		);
@@ -83,7 +83,7 @@ final class ChaptersController {
 			'/chapters/(?P<id>\d+)/blocks/(?P<block_id>[A-Za-z0-9_-]+)',
 			array(
 				'methods'             => 'PUT',
-				'callback'            => array( $this, 'manual_edit_block' ),
+				'callback'            => $this->guarded( 'manual_edit_block' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -204,5 +204,23 @@ final class ChaptersController {
 
 	private static function not_found( string $what ): WP_Error {
 		return new WP_Error( 'gw_not_found', "{$what} non trovato.", array( 'status' => 404 ) );
+	}
+
+	/**
+	 * Avvolge un callback REST: qualunque Throwable diventa un errore JSON
+	 * leggibile invece di una risposta vuota con 500.
+	 */
+	private function guarded( string $method ): callable {
+		return function ( WP_REST_Request $request ) use ( $method ): WP_REST_Response|WP_Error {
+			try {
+				return $this->{$method}( $request );
+			} catch ( \Throwable $e ) {
+				return new WP_Error(
+					'gw_internal',
+					sprintf( 'Errore interno (%s): %s', $method, $e->getMessage() ),
+					array( 'status' => 500 )
+				);
+			}
+		};
 	}
 }

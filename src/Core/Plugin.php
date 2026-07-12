@@ -264,11 +264,24 @@ final class Plugin {
 		add_action( 'init', array( PostTypes::class, 'register' ) );
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
-		// Action Scheduler: caricato come libreria (non richiede WooCommerce).
-		$action_scheduler = GHOSTWRITER_PLUGIN_DIR . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
-		if ( file_exists( $action_scheduler ) ) {
-			require_once $action_scheduler;
-		}
+		// Action Scheduler è caricato da ghostwriter.php (file principale):
+		// qui solo la verifica, con notice esplicita se qualcosa l'ha impedito.
+		add_action(
+			'init',
+			static function (): void {
+				if ( function_exists( 'as_enqueue_async_action' ) ) {
+					return;
+				}
+				add_action(
+					'admin_notices',
+					static function (): void {
+						echo '<div class="notice notice-error"><p><strong>Ghostwriter:</strong> '
+							. esc_html__( 'Action Scheduler non è inizializzato: i lavori in background non possono partire. Verifica che la cartella vendor/woocommerce/action-scheduler sia presente e riattiva il plugin.', 'ghostwriter' )
+							. '</p></div>';
+					}
+				);
+			}
+		);
 
 		Activator::maybe_upgrade();
 

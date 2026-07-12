@@ -24,10 +24,29 @@
 			options.body = body; // FormData
 		}
 		return fetch( cfg.restRoot + path, options ).then( function ( response ) {
-			return response.json().then( function ( data ) {
+			// Il body si legge come testo: una risposta vuota o non-JSON
+			// (errore PHP fatale, WAF, pagina HTML) deve produrre un messaggio
+			// comprensibile, non "JSON.parse: unexpected end of data".
+			return response.text().then( function ( text ) {
+				var data = null;
+				if ( text ) {
+					try {
+						data = JSON.parse( text );
+					} catch ( parseError ) {
+						data = null;
+					}
+				}
 				if ( ! response.ok ) {
-					var message = ( data && data.message ) ? data.message : response.statusText;
+					var message = ( data && data.message )
+						? data.message
+						: 'HTTP ' + response.status + ' — ' + ( text ? text.replace( /<[^>]*>/g, ' ' ).trim().slice( 0, 300 ) : cfg.i18n.emptyResponse );
 					throw new Error( message );
+				}
+				if ( null === data && text ) {
+					throw new Error( cfg.i18n.badResponse + ' ' + text.slice( 0, 200 ) );
+				}
+				if ( null === data ) {
+					throw new Error( 'HTTP ' + response.status + ' — ' + cfg.i18n.emptyResponse );
 				}
 				return data;
 			} );
