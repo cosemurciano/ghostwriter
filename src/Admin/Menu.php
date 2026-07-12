@@ -59,13 +59,15 @@ final class Menu {
 			26
 		);
 
-		$this->hooks[] = (string) add_submenu_page(
+		// NB: stesso slug del top-level SENZA callback — ripassarlo qui
+		// registrerebbe due azioni sullo stesso hook e la pagina verrebbe
+		// renderizzata due volte (campi duplicati).
+		add_submenu_page(
 			self::SLUG_PROJECTS,
 			__( 'Progetti', 'ghostwriter' ),
 			__( 'Progetti', 'ghostwriter' ),
 			Capabilities::MANAGE_PROJECTS,
-			self::SLUG_PROJECTS,
-			$this->page_callback( ProjectsPage::class )
+			self::SLUG_PROJECTS
 		);
 
 		$this->hooks[] = (string) add_submenu_page(
@@ -118,6 +120,8 @@ final class Menu {
 		if ( ! in_array( $hook_suffix, $this->hooks, true ) ) {
 			return;
 		}
+
+		wp_enqueue_media(); // Selettore media per fonti/copertina.
 
 		wp_enqueue_style(
 			'gw-admin',

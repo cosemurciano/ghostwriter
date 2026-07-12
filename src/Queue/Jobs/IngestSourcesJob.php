@@ -42,7 +42,19 @@ final class IngestSourcesJob implements JobInterface {
 			return;
 		}
 
-		$text = $this->extractor->extract( $source );
+		// Articoli del sito: il testo si compone dai post pubblicati.
+		if ( ! empty( $source['site_posts'] ) ) {
+			$text = self::site_posts_text();
+		} else {
+			// Media WordPress: si risolve il path locale dell'attachment.
+			if ( ! empty( $source['attachment_id'] ) && empty( $source['file_path'] ) ) {
+				$path = get_attached_file( (int) $source['attachment_id'] );
+				if ( is_string( $path ) && '' !== $path ) {
+					$source['file_path'] = $path;
+				}
+			}
+			$text = $this->extractor->extract( $source );
+		}
 		if ( '' === $text ) {
 			throw new \RuntimeException( "La fonte {$source_id} non ha prodotto testo." );
 		}
@@ -59,6 +71,28 @@ final class IngestSourcesJob implements JobInterface {
 		);
 
 		$this->log->log( $project_id, null, LogRepository::LEVEL_INFO, 'source_ingested', array( 'source_id' => $source_id, 'chunks' => $chunk_count ) );
+	}
+
+	/**
+	 * Tutti gli articoli pubblicati come testo (titolo + contenuto senza tag).
+	 */
+	private static function site_posts_text(): string {
+		$posts = get_posts(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'publish',
+				'posts_per_page' => 500,
+				'orderby'        => 'date',
+				'order'          => 'DESC',
+			)
+		);
+
+		$parts = array();
+		foreach ( $posts as $post ) {
+			$parts[] = $post->post_title . "\n" . wp_strip_all_tags( (string) $post->post_content );
+		}
+
+		return \Ghostwriter\Sources\TextExtractor::normalize( implode( "\n\n", $parts ) );
 	}
 
 	public function on_failure( array $args, \Throwable $e ): void {

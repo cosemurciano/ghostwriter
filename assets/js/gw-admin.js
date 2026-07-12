@@ -81,9 +81,20 @@
 			body.feedback = feedback;
 		}
 
+		if ( el.hasAttribute( 'data-gw-from-input' ) ) {
+			var input = el.closest( 'form' ).querySelector( '[name="' + el.getAttribute( 'data-gw-from-input' ) + '"]' );
+			body = body || {};
+			body[ el.getAttribute( 'data-gw-from-input' ) ] = input ? input.value : '';
+		}
+
 		el.disabled = true;
 		api( path, method, body )
-			.then( function () {
+			.then( function ( data ) {
+				el.disabled = false;
+				if ( el.hasAttribute( 'data-gw-noreload' ) ) {
+					notify( ( data && data.message ) ? data.message : 'OK', false );
+					return;
+				}
 				notify( cfg.i18n.queued, false );
 				reloadSoon();
 			} )
@@ -91,6 +102,110 @@
 				el.disabled = false;
 				notify( cfg.i18n.error + ': ' + error.message, true );
 			} );
+	} );
+
+	// Tab del progetto: sempre cliccabili, stato ricordato nell'hash.
+	document.addEventListener( 'click', function ( event ) {
+		var tab = event.target.closest( '[data-gw-tab]' );
+		if ( ! tab ) {
+			return;
+		}
+		event.preventDefault();
+		var key = tab.getAttribute( 'data-gw-tab' );
+		document.querySelectorAll( '[data-gw-tab]' ).forEach( function ( t ) {
+			t.classList.toggle( 'nav-tab-active', t === tab );
+		} );
+		document.querySelectorAll( '[data-gw-panel]' ).forEach( function ( p ) {
+			p.style.display = p.getAttribute( 'data-gw-panel' ) === key ? '' : 'none';
+		} );
+		window.history.replaceState( null, '', '#' + key );
+	} );
+	if ( window.location.hash ) {
+		var initial = document.querySelector( '[data-gw-tab="' + window.location.hash.slice( 1 ) + '"]' );
+		if ( initial ) {
+			initial.click();
+		}
+	}
+
+	// Tipo fonte: mostra URL o selettore media.
+	document.addEventListener( 'change', function ( event ) {
+		var select = event.target.closest( '[data-gw-source-type]' );
+		if ( ! select ) {
+			return;
+		}
+		var form = select.closest( 'form' );
+		var isMedia = 'media' === select.value;
+		form.querySelector( '[data-gw-location-url]' ).style.display = isMedia ? 'none' : '';
+		form.querySelector( '[data-gw-location-media]' ).style.display = isMedia ? '' : 'none';
+	} );
+
+	// Selettore Media Library.
+	document.addEventListener( 'click', function ( event ) {
+		var pick = event.target.closest( '[data-gw-pick-media]' );
+		if ( ! pick || 'undefined' === typeof window.wp || ! window.wp.media ) {
+			return;
+		}
+		event.preventDefault();
+		var frame = window.wp.media( { multiple: false } );
+		frame.on( 'select', function () {
+			var att = frame.state().get( 'selection' ).first().toJSON();
+			var form = pick.closest( 'form' );
+			form.querySelector( '[name="attachment_id"]' ).value = att.id;
+			form.querySelector( '.gw-media-chosen' ).textContent = att.filename || att.title;
+			var title = form.querySelector( '[name="title"]' );
+			if ( title && '' === title.value ) {
+				title.value = att.title || att.filename;
+			}
+		} );
+		frame.open();
+	} );
+
+	// Test fonte non ancora registrata: payload dal form.
+	document.addEventListener( 'click', function ( event ) {
+		var test = event.target.closest( '[data-gw-test-source]' );
+		if ( ! test ) {
+			return;
+		}
+		event.preventDefault();
+		var form = test.closest( 'form' );
+		var data = {};
+		new FormData( form ).forEach( function ( value, key ) {
+			data[ key ] = value;
+		} );
+		var body = transforms.addSource( data );
+		test.disabled = true;
+		api( '/projects/' + test.getAttribute( 'data-gw-test-source' ) + '/sources/test', 'POST', body )
+			.then( function ( result ) {
+				test.disabled = false;
+				notify( result.message, false );
+			} )
+			.catch( function ( error ) {
+				test.disabled = false;
+				notify( error.message, true );
+			} );
+	} );
+
+	// Spunta "tutti gli articoli del sito".
+	document.addEventListener( 'change', function ( event ) {
+		var box = event.target.closest( '[data-gw-site-posts]' );
+		if ( ! box || ! box.checked ) {
+			return;
+		}
+		api( '/projects/' + box.getAttribute( 'data-gw-site-posts' ) + '/sources', 'POST', {
+			source: {
+				source_id: 'src-articoli-sito',
+				type: 'article',
+				title: 'Articoli del sito',
+				license: 'proprietaria',
+				site_posts: true,
+			},
+		} ).then( function () {
+			notify( cfg.i18n.queued, false );
+			reloadSoon();
+		} ).catch( function ( error ) {
+			box.checked = false;
+			notify( cfg.i18n.error + ': ' + error.message, true );
+		} );
 	} );
 
 	// Form JSON: <form data-gw-form="POST /projects" data-gw-transform="newProject">
@@ -171,16 +286,18 @@
 			return { language: data.language };
 		},
 
-		// Nuova fonte: source_id derivato dal titolo, URL o path in base al tipo.
+		// Nuova fonte: source_id dal titolo; URL, media WP o path in base al tipo.
 		addSource: function ( data ) {
 			var source = {
 				source_id: 'src-' + data.title.toLowerCase().replace( /[^a-z0-9]+/g, '-' ).replace( /^-+|-+$/g, '' ).slice( 0, 40 ),
-				type: 'open_data' === data.type ? 'open_data' : data.type,
+				type: 'media' === data.type ? 'pdf' : data.type,
 				title: data.title,
 				license: data.license,
 				attribution_required: !! data.attribution_required,
 			};
-			if ( 'pdf' === data.type ) {
+			if ( 'media' === data.type && data.attachment_id ) {
+				source.attachment_id = parseInt( data.attachment_id, 10 );
+			} else if ( 'pdf' === data.type ) {
 				source.file_path = data.location;
 			} else {
 				source.url = data.location;

@@ -353,3 +353,30 @@
 .gw-state {
 	white-space: nowrap;
 }
+
+/* --- Tab progetto --- */
+
+.gw-tabs {
+	margin: 14px 0 0;
+}
+
+.gw-panel {
+	margin-top: 14px;
+	max-width: 1100px;
+}
+
+.gw-source-grid {
+	display: grid;
+	grid-template-columns: 1fr 240px;
+	gap: 8px;
+	align-items: start;
+}
+
+.gw-source-grid input[type="text"] {
+	width: 100%;
+}
+
+.gw-source-grid .gw-actions {
+	grid-column: 1 / -1;
+	margin: 4px 0 0;
+}

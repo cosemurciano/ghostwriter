@@ -216,6 +216,7 @@ class ComposerStaticInit732305a0cea106f701f5fa709f8e634b
         'Ghostwriter\\Rest\\RegistryController' => __DIR__ . '/../..' . '/src/Rest/RegistryController.php',
         'Ghostwriter\\Schema\\SchemaValidationException' => __DIR__ . '/../..' . '/src/Schema/SchemaValidationException.php',
         'Ghostwriter\\Schema\\SchemaValidator' => __DIR__ . '/../..' . '/src/Schema/SchemaValidator.php',
+        'Ghostwriter\\Sources\\SourceTester' => __DIR__ . '/../..' . '/src/Sources/SourceTester.php',
         'Ghostwriter\\Sources\\TextExtractor' => __DIR__ . '/../..' . '/src/Sources/TextExtractor.php',
         'Ghostwriter\\Translation\\DerivedProjectFactory' => __DIR__ . '/../..' . '/src/Translation/DerivedProjectFactory.php',
         'Ghostwriter\\Translation\\GlossaryService' => __DIR__ . '/../..' . '/src/Translation/GlossaryService.php',

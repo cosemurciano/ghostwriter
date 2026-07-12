@@ -112,6 +112,7 @@ return array(
     'Ghostwriter\\Rest\\RegistryController' => $baseDir . '/src/Rest/RegistryController.php',
     'Ghostwriter\\Schema\\SchemaValidationException' => $baseDir . '/src/Schema/SchemaValidationException.php',
     'Ghostwriter\\Schema\\SchemaValidator' => $baseDir . '/src/Schema/SchemaValidator.php',
+    'Ghostwriter\\Sources\\SourceTester' => $baseDir . '/src/Sources/SourceTester.php',
     'Ghostwriter\\Sources\\TextExtractor' => $baseDir . '/src/Sources/TextExtractor.php',
     'Ghostwriter\\Translation\\DerivedProjectFactory' => $baseDir . '/src/Translation/DerivedProjectFactory.php',
     'Ghostwriter\\Translation\\GlossaryService' => $baseDir . '/src/Translation/GlossaryService.php',
