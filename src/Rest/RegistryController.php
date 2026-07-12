@@ -58,6 +58,19 @@ final class RegistryController {
 
 		register_rest_route(
 			ProjectsController::REST_NAMESPACE,
+			'/skills/(?P<skill_id>[A-Za-z0-9._-]+)/(?P<version>[A-Za-z0-9._-]+)',
+			array(
+				'methods'             => 'DELETE',
+				'callback'            => function ( WP_REST_Request $request ): WP_REST_Response {
+					$this->skills->delete( (string) $request['skill_id'], (string) $request['version'] );
+					return new WP_REST_Response( array( 'deleted' => true ) );
+				},
+				'permission_callback' => $manage_settings,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
 			'/skills/import',
 			array(
 				'methods'             => 'POST',
@@ -115,6 +128,17 @@ final class RegistryController {
 	}
 
 	public function import_skill( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		// Zip in stile Claude skills (cartella con SKILL.md + asset).
+		$files = $request->get_file_params();
+		if ( ! empty( $files['bundle']['tmp_name'] ) && UPLOAD_ERR_OK === ( $files['bundle']['error'] ?? -1 ) ) {
+			try {
+				$meta = $this->skills->import_zip( (string) $files['bundle']['tmp_name'] );
+			} catch ( \Throwable $e ) {
+				return new WP_Error( 'gw_skill_rejected', $e->getMessage(), array( 'status' => 422 ) );
+			}
+			return new WP_REST_Response( $meta, 201 );
+		}
+
 		$skill_id = (string) $request->get_param( 'skill_id' );
 		$version  = (string) $request->get_param( 'version' );
 		$content  = (string) $request->get_param( 'content' );

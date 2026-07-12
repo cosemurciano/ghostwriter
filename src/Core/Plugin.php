@@ -184,7 +184,8 @@ final class Plugin {
 				$c->get( StateMachine::class ),
 				$c->get( UsageMeter::class ),
 				$c->get( ThemeRegistry::class ),
-				$c->get( LogRepository::class )
+				$c->get( LogRepository::class ),
+				$c->get( SkillsManager::class )
 			),
 			NewProjectPage::class       => static fn(): object => new NewProjectPage(),
 			ChaptersPage::class         => static fn( Plugin $c ): object => new ChaptersPage(

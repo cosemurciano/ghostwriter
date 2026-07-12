@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Admin;
 
+use Ghostwriter\Ai\SkillsManager;
 use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Jobs\ExportJob;
@@ -24,7 +25,8 @@ final class ProjectsPage {
 		private StateMachine $states,
 		private UsageMeter $meter,
 		private ThemeRegistry $themes,
-		private LogRepository $log
+		private LogRepository $log,
+		private SkillsManager $skills
 	) {
 	}
 
@@ -97,6 +99,7 @@ final class ProjectsPage {
 		$tabs = $is_translation
 			? array(
 				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
+				'skills'    => __( 'Skills', 'ghostwriter' ),
 				'glossario' => __( 'Glossario', 'ghostwriter' ),
 				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
 				'copertina' => __( 'Copertina', 'ghostwriter' ),
@@ -105,6 +108,7 @@ final class ProjectsPage {
 			)
 			: array(
 				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
+				'skills'    => __( 'Skills', 'ghostwriter' ),
 				'fonti'     => __( 'Fonti', 'ghostwriter' ),
 				'indice'    => __( 'Indice', 'ghostwriter' ),
 				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
@@ -136,6 +140,7 @@ final class ProjectsPage {
 		};
 
 		$panel( 'impostazioni', fn() => $this->render_settings_box( $project_id, $state, $config, $is_translation ) );
+		$panel( 'skills', fn() => $this->render_skills_box( $project_id, $config ) );
 		if ( $is_translation ) {
 			$panel( 'glossario', fn() => $this->render_glossary_box( $project_id, $state, $dossier ) );
 		} else {
@@ -152,6 +157,69 @@ final class ProjectsPage {
 				$this->render_log_box( $project_id );
 			}
 		);
+	}
+
+	/**
+	 * Tab Skills: quali skill del registro montare sul progetto e in quali
+	 * fasi della pipeline. Le fasi proposte vengono dal frontmatter della
+	 * skill (metadata.x-ghostwriter.default_phases) o dalla config salvata.
+	 *
+	 * @param array<string, mixed> $config Config progetto.
+	 */
+	private function render_skills_box( int $project_id, array $config ): void {
+		$registry = $this->skills->registry();
+		$mounted  = array();
+		foreach ( (array) ( $config['skills'] ?? array() ) as $entry ) {
+			$mounted[ (string) ( $entry['skill_id'] ?? '' ) ] = array(
+				'version' => (string) ( $entry['version'] ?? '' ),
+				'phases'  => array_map( 'strval', (array) ( $entry['phases'] ?? array() ) ),
+			);
+		}
+
+		$this->box_open( esc_html__( 'Skills del progetto', 'ghostwriter' ) );
+
+		if ( array() === $registry ) {
+			echo '<p class="gw-muted">' . esc_html__( 'Nessuna skill installata. Importa un pacchetto zip dalla sezione Skills.', 'ghostwriter' ) . '</p>'
+				. '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=' . Menu::SLUG_SKILLS ) ) . '">' . esc_html__( 'Vai alle Skills', 'ghostwriter' ) . '</a></p>';
+			$this->box_close();
+			return;
+		}
+
+		$all_phases = array( 'outline', 'draft', 'review', 'images', 'cover', 'translation', 'glossary', 'export' );
+
+		echo '<p class="gw-muted">' . esc_html__( 'Spunta le skill da usare per questo progetto e le fasi della pipeline in cui montarle: ogni chiamata AI carica solo le skill della propria fase (controllo costi).', 'ghostwriter' ) . '</p>';
+		echo '<form data-gw-form="PUT /projects/' . $project_id . '/settings" data-gw-transform="projectSkills">';
+		echo '<table class="widefat striped gw-clean-table"><thead><tr>'
+			. '<th class="check-column"></th>'
+			. '<th>' . esc_html__( 'Skill', 'ghostwriter' ) . '</th>'
+			. '<th>' . esc_html__( 'Descrizione', 'ghostwriter' ) . '</th>'
+			. '<th>' . esc_html__( 'Fasi in cui montarla', 'ghostwriter' ) . '</th>'
+			. '</tr></thead><tbody>';
+
+		foreach ( $registry as $skill_id => $versions ) {
+			$version = $mounted[ $skill_id ]['version'] ?? (string) end( $versions );
+			if ( ! in_array( $version, $versions, true ) ) {
+				$version = (string) end( $versions );
+			}
+			$meta    = $this->skills->describe( $skill_id, $version );
+			$active  = isset( $mounted[ $skill_id ] );
+			$phases  = $active ? $mounted[ $skill_id ]['phases'] : $meta['default_phases'];
+
+			echo '<tr class="gw-skill-row" data-skill="' . esc_attr( $skill_id ) . '" data-version="' . esc_attr( $version ) . '">';
+			echo '<th class="check-column"><input type="checkbox" name="skill_on"' . checked( $active, true, false ) . '/></th>';
+			echo '<td><strong>' . esc_html( $meta['name'] ) . '</strong><br/><span class="gw-muted">' . esc_html( $skill_id . ' · v' . $version ) . '</span></td>';
+			echo '<td>' . esc_html( wp_trim_words( $meta['description'], 30 ) ) . '</td>';
+			echo '<td>';
+			foreach ( $all_phases as $phase ) {
+				echo '<label class="gw-phase-check"><input type="checkbox" name="phase" value="' . esc_attr( $phase ) . '"' . checked( in_array( $phase, $phases, true ), true, false ) . '/> ' . esc_html( $phase ) . '</label>';
+			}
+			echo '</td></tr>';
+		}
+
+		echo '</tbody></table>';
+		echo '<p class="gw-actions"><button type="submit" class="button button-primary">' . esc_html__( 'Salva skills del progetto', 'ghostwriter' ) . '</button></p>';
+		echo '</form>';
+		$this->box_close();
 	}
 
 	/**
@@ -620,8 +688,14 @@ final class ProjectsPage {
 		} else {
 			echo '<ul class="gw-log">';
 			foreach ( $entries as $entry ) {
+				$context = is_array( $entry['context'] ) ? $entry['context'] : array();
 				echo '<li class="gw-log-' . esc_attr( (string) $entry['level'] ) . '"><code>' . esc_html( (string) $entry['event'] ) . '</code>'
-					. '<span class="gw-muted"> · ' . esc_html( (string) $entry['created_at'] ) . '</span></li>';
+					. ( isset( $context['job'] ) ? ' <span class="gw-muted">(' . esc_html( (string) $context['job'] ) . ')</span>' : '' )
+					. '<span class="gw-muted"> · ' . esc_html( (string) $entry['created_at'] ) . '</span>';
+				if ( isset( $context['error'] ) && '' !== (string) $context['error'] ) {
+					echo '<br/><span class="gw-log-detail">' . esc_html( (string) $context['error'] ) . '</span>';
+				}
+				echo '</li>';
 			}
 			echo '</ul>';
 		}

@@ -317,6 +317,27 @@
 			return body;
 		},
 
+		// Tab Skills del progetto: righe spuntate → { skills: [{skill_id, version, phases}] }.
+		projectSkills: function ( data, form ) {
+			var skills = [];
+			form.querySelectorAll( '.gw-skill-row' ).forEach( function ( row ) {
+				var on = row.querySelector( 'input[name="skill_on"]' );
+				if ( ! on || ! on.checked ) {
+					return;
+				}
+				var phases = [];
+				row.querySelectorAll( 'input[name="phase"]:checked' ).forEach( function ( input ) {
+					phases.push( input.value );
+				} );
+				skills.push( {
+					skill_id: row.getAttribute( 'data-skill' ),
+					version: row.getAttribute( 'data-version' ),
+					phases: phases,
+				} );
+			} );
+			return { skills: skills };
+		},
+
 		derive: function ( data ) {
 			return { language: data.language };
 		},
