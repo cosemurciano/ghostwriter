@@ -19,6 +19,17 @@ final class NewProjectPage {
 
 		echo '<form data-gw-form="POST /projects" data-gw-transform="newProject" data-gw-goto-project>';
 
+		// --- Modalità di scrittura ---
+		$this->box_open( __( 'Come scrivi questo libro?', 'ghostwriter' ) );
+		echo '<table class="form-table" role="presentation">';
+		$this->row(
+			__( 'Modalità', 'ghostwriter' ),
+			'<label style="display:block;margin-bottom:6px"><input type="radio" name="writing_mode" value="ai" class="gw-writing-mode" checked/> <strong>' . esc_html__( 'Con l\'AI', 'ghostwriter' ) . '</strong> — ' . esc_html__( 'indice proposto, capitoli generati e revisionati, immagini e copertina', 'ghostwriter' ) . '</label>'
+			. '<label style="display:block"><input type="radio" name="writing_mode" value="manual" class="gw-writing-mode"/> <strong>' . esc_html__( 'Manualmente, senza AI', 'ghostwriter' ) . '</strong> — ' . esc_html__( 'scrivi tu ogni capitolo nell\'editor di WordPress, con upload di immagini; il plugin cura struttura, impaginazione ed export PDF/ePub', 'ghostwriter' ) . '</label>'
+		);
+		echo '</table>';
+		$this->box_close();
+
 		// --- Contenuto ---
 		$this->box_open( __( 'Contenuto', 'ghostwriter' ) );
 		echo '<table class="form-table" role="presentation">';
@@ -87,7 +98,8 @@ final class NewProjectPage {
 		echo '</table>';
 		$this->box_close();
 
-		// --- Motore AI ---
+		// --- Motore AI (nascosto in modalità manuale) ---
+		echo '<div class="gw-ai-only">';
 		$this->box_open( __( 'Motore AI', 'ghostwriter' ) );
 		echo '<table class="form-table" role="presentation">';
 
@@ -111,6 +123,7 @@ final class NewProjectPage {
 		);
 		echo '</table>';
 		$this->box_close();
+		echo '</div>';
 
 		echo '<p class="submit"><button type="submit" class="button button-primary button-hero">' . esc_html__( 'Crea progetto', 'ghostwriter' ) . '</button> '
 			. '<a class="button button-hero" href="' . esc_url( admin_url( 'admin.php?page=' . Menu::SLUG_PROJECTS ) ) . '">' . esc_html__( 'Annulla', 'ghostwriter' ) . '</a></p>';

@@ -93,6 +93,18 @@ class ProjectRepository {
 	}
 
 	/**
+	 * True se il libro è scritto interamente a mano (nessuna chiamata AI).
+	 */
+	public function is_manual( int $project_id ): bool {
+		try {
+			$config = $this->get_config( $project_id );
+		} catch ( \Throwable ) {
+			return false; // Progetto assente o config corrotta: mai manuale.
+		}
+		return ! empty( $config['ai']['manual'] );
+	}
+
+	/**
 	 * ID dei capitoli del progetto, ordinati per gerarchia e menu_order.
 	 *
 	 * @return int[]

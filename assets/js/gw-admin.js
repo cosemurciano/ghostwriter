@@ -313,6 +313,11 @@
 				config.ai.image_provider = data.image_provider;
 				config.ai.image_model = data.image_model || '';
 			}
+			// Libro manuale: nessuna chiamata AI. Provider mock solo come
+			// segnaposto per lo schema; il flag manual governa la UI.
+			if ( 'manual' === data.writing_mode ) {
+				config.ai = { provider: 'mock', model: 'manuale', manual: true };
+			}
 			return { title: data.title, config: config };
 		},
 
@@ -648,6 +653,17 @@
 			input.value = '';
 		} );
 		table.appendChild( row );
+	} );
+
+	// Modalità di scrittura (creazione progetto): manuale → niente box AI.
+	document.addEventListener( 'change', function ( event ) {
+		var radio = event.target.closest( '.gw-writing-mode' );
+		if ( ! radio ) {
+			return;
+		}
+		document.querySelectorAll( '.gw-ai-only' ).forEach( function ( box ) {
+			box.style.display = 'manual' === radio.value ? 'none' : '';
+		} );
 	} );
 
 	// Formato libro: i preset compilano i campi mm, "Personalizzato" li mostra.

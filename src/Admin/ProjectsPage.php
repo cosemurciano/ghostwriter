@@ -76,6 +76,7 @@ final class ProjectsPage {
 		$state          = $this->states->state_of( $project_id, $type );
 		$config         = $this->projects->get_config( $project_id );
 		$dossier        = $this->projects->get_dossier( $project_id ) ?? array();
+		$is_manual      = ! empty( $config['ai']['manual'] );
 
 		echo '<h1 class="wp-heading-inline">' . esc_html( get_the_title( $project_id ) ) . '</h1> '
 			. '<a href="' . esc_url( admin_url( 'admin.php?page=' . Menu::SLUG_PROJECTS ) ) . '" class="page-title-action">' . esc_html__( 'Tutti i progetti', 'ghostwriter' ) . '</a> '
@@ -85,7 +86,9 @@ final class ProjectsPage {
 		echo '<p class="gw-subtitle">'
 			. ( $is_translation ? '<span class="dashicons dashicons-translation"></span> ' . esc_html__( 'Traduzione', 'ghostwriter' ) : '<span class="dashicons dashicons-book-alt"></span> ' . esc_html__( 'Libro', 'ghostwriter' ) )
 			. ' · ' . esc_html( strtoupper( (string) ( $config['language'] ?? '' ) ) )
-			. ' · ' . esc_html( (string) ( $config['ai']['provider'] ?? '' ) . ' / ' . (string) ( $config['ai']['model'] ?? '' ) )
+			. ' · ' . ( $is_manual
+				? '<span class="dashicons dashicons-edit"></span> ' . esc_html__( 'scrittura manuale (senza AI)', 'ghostwriter' )
+				: esc_html( (string) ( $config['ai']['provider'] ?? '' ) . ' / ' . (string) ( $config['ai']['model'] ?? '' ) ) )
 			. ' · ' . esc_html( (string) ( $config['format']['trim_width_mm'] ?? '' ) . '×' . (string) ( $config['format']['trim_height_mm'] ?? '' ) . ' mm' )
 			. '</p>';
 
@@ -95,12 +98,12 @@ final class ProjectsPage {
 				. ' <button class="button button-small" data-gw-action="POST /projects/' . $project_id . '/budget/resume" data-gw-confirm>' . esc_html__( 'Riprendi', 'ghostwriter' ) . '</button></p></div>';
 		}
 
-		$this->render_pipeline_actions( $project_id, $state, $is_translation );
+		$this->render_pipeline_actions( $project_id, $state, $is_translation, $is_manual );
 
 		// Tab sempre cliccabili: nessun wizard, ogni sezione è accessibile
 		// in qualunque stato (le azioni restano contestuali nella barra sopra).
-		$tabs = $is_translation
-			? array(
+		if ( $is_translation ) {
+			$tabs = array(
 				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
 				'skills'    => __( 'Skills', 'ghostwriter' ),
 				'glossario' => __( 'Glossario', 'ghostwriter' ),
@@ -108,8 +111,18 @@ final class ProjectsPage {
 				'copertina' => __( 'Copertina', 'ghostwriter' ),
 				'export'    => __( 'Export', 'ghostwriter' ),
 				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
-			)
-			: array(
+			);
+		} elseif ( $is_manual ) {
+			// Libro manuale: niente skills/fonti/indice AI — si scrive e basta.
+			$tabs = array(
+				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
+				'copertina' => __( 'Copertina', 'ghostwriter' ),
+				'export'    => __( 'Export', 'ghostwriter' ),
+				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
+				'attivita'  => __( 'Attività', 'ghostwriter' ),
+			);
+		} else {
+			$tabs = array(
 				'impostazioni' => __( 'Impostazioni', 'ghostwriter' ),
 				'skills'    => __( 'Skills', 'ghostwriter' ),
 				'fonti'     => __( 'Fonti', 'ghostwriter' ),
@@ -119,15 +132,21 @@ final class ProjectsPage {
 				'export'    => __( 'Export', 'ghostwriter' ),
 				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
 			);
+		}
 
-		$default_tab = match ( $state ) {
-			'setup', 'sources_ingesting' => $is_translation ? 'glossario' : 'impostazioni',
-			'outline_proposed', 'outline_approved' => 'indice',
-			'glossary_proposed', 'glossary_approved' => 'glossario',
-			'generating', 'translating', 'review' => 'capitoli',
-			'cover_pending' => 'copertina',
-			'ready_to_export', 'exported' => 'export',
-			default => array_key_first( $tabs ),
+		$default_tab = match ( true ) {
+			$is_manual && in_array( $state, array( 'cover_pending' ), true ) => 'copertina',
+			$is_manual && in_array( $state, array( 'ready_to_export', 'exported' ), true ) => 'export',
+			$is_manual => 'capitoli',
+			default => match ( $state ) {
+				'setup', 'sources_ingesting' => $is_translation ? 'glossario' : 'impostazioni',
+				'outline_proposed', 'outline_approved' => 'indice',
+				'glossary_proposed', 'glossary_approved' => 'glossario',
+				'generating', 'translating', 'review' => 'capitoli',
+				'cover_pending' => 'copertina',
+				'ready_to_export', 'exported' => 'export',
+				default => array_key_first( $tabs ),
+			},
 		};
 
 		echo '<nav class="nav-tab-wrapper gw-tabs">';
@@ -143,14 +162,16 @@ final class ProjectsPage {
 		};
 
 		$panel( 'impostazioni', fn() => $this->render_settings_box( $project_id, $state, $config, $is_translation ) );
-		$panel( 'skills', fn() => $this->render_skills_box( $project_id, $config ) );
+		if ( ! $is_manual ) {
+			$panel( 'skills', fn() => $this->render_skills_box( $project_id, $config ) );
+		}
 		if ( $is_translation ) {
 			$panel( 'glossario', fn() => $this->render_glossary_box( $project_id, $state, $dossier ) );
-		} else {
+		} elseif ( ! $is_manual ) {
 			$panel( 'fonti', fn() => $this->render_sources_box( $project_id, $config ) );
 			$panel( 'indice', fn() => $this->render_outline_box( $project_id, $state, $dossier ) );
 		}
-		$panel( 'capitoli', fn() => $this->render_chapters_box( $project_id, $dossier ) );
+		$panel( 'capitoli', fn() => $this->render_chapters_box( $project_id, $dossier, $is_manual ) );
 		$panel( 'copertina', fn() => $this->render_cover_box( $project_id, $config ) );
 		$panel( 'export', fn() => $this->render_export_box( $project_id, $config ) );
 		$panel(
@@ -281,6 +302,13 @@ final class ProjectsPage {
 		echo '</table>';
 		$this->box_close();
 
+		if ( ! empty( $config['ai']['manual'] ) ) {
+			// Libro manuale: nessun motore AI da configurare.
+			echo '<p class="gw-muted"><span class="dashicons dashicons-edit"></span> ' . esc_html__( 'Progetto a scrittura manuale: nessuna chiamata AI. Scrivi i capitoli nell\'editor, carica le immagini dalla Media Library e la copertina in modalità upload.', 'ghostwriter' ) . '</p>';
+			echo '<p><button class="button button-primary">' . esc_html__( 'Salva impostazioni', 'ghostwriter' ) . '</button></p></form>';
+			return;
+		}
+
 		$this->box_open( esc_html__( 'Motore AI', 'ghostwriter' ) );
 		echo '<table class="form-table" role="presentation">';
 		echo '<tr><th>' . esc_html__( 'Provider e modello', 'ghostwriter' ) . '</th><td><select name="provider">';
@@ -304,7 +332,12 @@ final class ProjectsPage {
 		echo '<p><button class="button button-primary">' . esc_html__( 'Salva impostazioni', 'ghostwriter' ) . '</button></p></form>';
 	}
 
-	private function render_pipeline_actions( int $project_id, string $state, bool $is_translation ): void {
+	private function render_pipeline_actions( int $project_id, string $state, bool $is_translation, bool $is_manual = false ): void {
+		if ( $is_manual ) {
+			$this->render_manual_actions( $project_id, $state );
+			return;
+		}
+
 		if ( PipelineRouter::is_stopped( $project_id ) ) {
 			echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__( 'Elaborazione ferma.', 'ghostwriter' ) . '</strong> '
 				. esc_html__( 'Nessun nuovo lavoro AI parte finché non riprendi.', 'ghostwriter' )
@@ -365,6 +398,48 @@ final class ProjectsPage {
 		echo '</div>';
 
 		$this->render_queue_widget( $project_id, $state );
+	}
+
+	/**
+	 * Barra azioni del libro manuale: nessuna pipeline AI, solo i passaggi
+	 * decisi dall'autore (chiudi scrittura → copertina → export).
+	 */
+	private function render_manual_actions( int $project_id, string $state ): void {
+		echo '<div class="gw-actionbar">';
+
+		switch ( $state ) {
+			case 'generating':
+				$complete = 0;
+				$total    = 0;
+				foreach ( $this->projects->get_chapter_ids( $project_id ) as $chapter_id ) {
+					++$total;
+					if ( 'complete' === $this->states->state_of( $chapter_id, StateMachine::TYPE_CHAPTER ) ) {
+						++$complete;
+					}
+				}
+				echo '<span class="gw-muted">' . esc_html__( 'Scrittura in corso: aggiungi capitoli, scrivili nell\'editor e segnali completi.', 'ghostwriter' ) . '</span>';
+				if ( $total > 0 && $complete === $total ) {
+					echo '<button class="button button-primary" data-gw-action="POST /projects/' . $project_id . '/advance" data-gw-confirm>' . esc_html__( 'Chiudi la scrittura', 'ghostwriter' ) . '</button>';
+				} elseif ( $total > 0 ) {
+					echo '<span class="gw-muted">' . esc_html( sprintf( /* translators: 1: completi, 2: totale */ __( '(%1$d capitoli completi su %2$d)', 'ghostwriter' ), $complete, $total ) ) . '</span>';
+				}
+				break;
+
+			case 'review':
+				echo '<button class="button button-primary" data-gw-action="POST /projects/' . $project_id . '/advance" data-gw-confirm>' . esc_html__( 'Conferma: passa alla copertina', 'ghostwriter' ) . '</button>';
+				break;
+
+			case 'cover_pending':
+				echo esc_html__( 'Copertina: carica la tua immagine dal riquadro Copertina (modalità upload) e approvala.', 'ghostwriter' );
+				break;
+
+			case 'ready_to_export':
+			case 'exported':
+				echo esc_html__( 'Pronto per l\'export: genera PDF ed ePub dalla tab Export.', 'ghostwriter' );
+				break;
+		}
+
+		echo '</div>';
 	}
 
 	/**
@@ -499,7 +574,7 @@ final class ProjectsPage {
 	/**
 	 * @param array<string, mixed> $dossier Dossier corrente.
 	 */
-	private function render_chapters_box( int $project_id, array $dossier ): void {
+	private function render_chapters_box( int $project_id, array $dossier, bool $is_manual = false ): void {
 		$ids = $this->projects->get_chapter_ids( $project_id );
 
 		$this->box_open(
@@ -507,8 +582,14 @@ final class ProjectsPage {
 			. ' <a class="gw-header-link" href="' . esc_url( admin_url( 'admin.php?page=' . Menu::SLUG_CHAPTERS . '&gw_project=' . $project_id ) ) . '">' . esc_html__( 'gestione capitoli →', 'ghostwriter' ) . '</a>'
 		);
 
-		if ( empty( $ids ) ) {
+		if ( empty( $ids ) && ! $is_manual ) {
 			echo '<p class="gw-muted">' . esc_html__( 'I capitoli nascono con l\'approvazione dell\'indice.', 'ghostwriter' ) . '</p>';
+			$this->box_close();
+			return;
+		}
+		if ( empty( $ids ) && $is_manual ) {
+			echo '<p class="gw-muted">' . esc_html__( 'Il libro è vuoto: aggiungi il primo capitolo qui sotto, poi scrivilo nell\'editor con testo e immagini. Quando è pronto, segnalo completo.', 'ghostwriter' ) . '</p>';
+			$this->render_add_chapter_form( $project_id, array() );
 			$this->box_close();
 			return;
 		}
@@ -544,7 +625,9 @@ final class ProjectsPage {
 				. '<td>' . $this->state_badge( $state ) . '</td>'
 				. '<td class="gw-muted">' . ( ! empty( $words[ $chapter_id ] ) ? esc_html( number_format_i18n( (int) $words[ $chapter_id ] ) ) . ' ' . esc_html__( 'parole', 'ghostwriter' ) : '' ) . '</td>'
 				. '<td class="gw-row-actions">'
-				. ( 'planned' === $state ? '<button class="button button-small button-primary" data-gw-action="POST /chapters/' . $chapter_id . '/draft" data-gw-confirm>' . esc_html__( 'Scrivi (AI)', 'ghostwriter' ) . '</button> ' : '' )
+				. ( ! $is_manual && 'planned' === $state ? '<button class="button button-small button-primary" data-gw-action="POST /chapters/' . $chapter_id . '/draft" data-gw-confirm>' . esc_html__( 'Scrivi (AI)', 'ghostwriter' ) . '</button> ' : '' )
+				. ( $is_manual && in_array( $state, array( 'planned', 'drafting' ), true ) && null !== $this->chapters->get_content( $chapter_id )
+					? '<button class="button button-small button-primary" data-gw-action="POST /chapters/' . $chapter_id . '/complete" data-gw-confirm>' . esc_html__( 'Segna completo', 'ghostwriter' ) . '</button> ' : '' )
 				. ( 'failed' === $state ? '<button class="button button-small" data-gw-action="POST /chapters/' . $chapter_id . '/retry" data-gw-confirm>' . esc_html__( 'Riprova', 'ghostwriter' ) . '</button> ' : '' )
 				. ( $edit_link ? '<a class="button button-small" href="' . esc_url( $edit_link ) . '">' . esc_html__( 'Apri nell\'editor', 'ghostwriter' ) . '</a> ' : '' )
 				. '<button class="button button-small" data-gw-chapter-blocks="' . $chapter_id . '">' . esc_html__( 'Blocchi', 'ghostwriter' ) . '</button>'
@@ -553,12 +636,22 @@ final class ProjectsPage {
 		}
 		echo '</tbody></table>';
 
-		// Capitolo manuale: nasce vuoto e planned; poi editor o "Scrivi (AI)".
+		$this->render_add_chapter_form( $project_id, $ids );
+
+		$this->box_close();
+	}
+
+	/**
+	 * Capitolo manuale: nasce vuoto e planned; poi editor o "Scrivi (AI)".
+	 *
+	 * @param int[] $ids Capitoli esistenti (per la posizione).
+	 */
+	private function render_add_chapter_form( int $project_id, array $ids ): void {
 		echo '<fieldset class="gw-regen">'
 			. '<legend><strong>' . esc_html__( 'Aggiungi capitolo', 'ghostwriter' ) . '</strong></legend>'
 			. '<form data-gw-form="POST /projects/' . $project_id . '/chapters" data-gw-transform="addChapter">'
 			. '<p><input type="text" name="title" class="large-text" required placeholder="' . esc_attr__( 'Titolo del capitolo', 'ghostwriter' ) . '"/></p>'
-			. '<p><textarea name="brief" rows="2" class="large-text" placeholder="' . esc_attr__( 'Obiettivo del capitolo (2-3 frasi, guida la scrittura AI — facoltativo)', 'ghostwriter' ) . '"></textarea></p>'
+			. '<p><textarea name="brief" rows="2" class="large-text" placeholder="' . esc_attr__( 'Obiettivo del capitolo in 2-3 frasi (facoltativo)', 'ghostwriter' ) . '"></textarea></p>'
 			. '<p><label>' . esc_html__( 'Posizione:', 'ghostwriter' ) . ' <select name="after">'
 			. '<option value="0">' . esc_html__( 'In fondo al libro', 'ghostwriter' ) . '</option>';
 		foreach ( array_values( $ids ) as $index => $chapter_id ) {
@@ -567,8 +660,6 @@ final class ProjectsPage {
 		echo '</select></label> '
 			. '<button type="submit" class="button button-primary">' . esc_html__( 'Aggiungi capitolo vuoto', 'ghostwriter' ) . '</button></p>'
 			. '</form></fieldset>';
-
-		$this->box_close();
 	}
 
 	/**

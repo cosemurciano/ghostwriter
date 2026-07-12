@@ -53,6 +53,16 @@ final class StateMachineTest extends TestCase {
 		);
 	}
 
+	public function test_manual_book_path(): void {
+		// Libro senza AI: setup → generating diretto; capitolo scritto a mano
+		// planned → complete con la chiusura esplicita dell'autore.
+		self::assertTrue( StateMachine::can( StateMachine::TYPE_PROJECT, 'setup', 'manual_started' ) );
+		self::assertTrue( StateMachine::can( StateMachine::TYPE_CHAPTER, 'planned', 'manual_completed' ) );
+		self::assertTrue( StateMachine::can( StateMachine::TYPE_CHAPTER, 'drafting', 'manual_completed' ) );
+		self::assertFalse( StateMachine::can( StateMachine::TYPE_CHAPTER, 'complete', 'manual_completed' ) );
+		self::assertFalse( StateMachine::can( StateMachine::TYPE_PROJECT, 'generating', 'manual_started' ) );
+	}
+
 	public function test_chapter_happy_path(): void {
 		$type  = StateMachine::TYPE_CHAPTER;
 		$state = 'planned';
