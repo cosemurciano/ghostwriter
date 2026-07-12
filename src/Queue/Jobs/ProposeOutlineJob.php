@@ -42,25 +42,47 @@ final class ProposeOutlineJob implements JobInterface {
 			throw new \RuntimeException( "Progetto {$project_id} inesistente." );
 		}
 
-		// Idempotenza: outline già proposto e presente nel dossier.
+		$regenerate = ! empty( $args['regenerate'] );
+
+		// Idempotenza: outline già proposto e presente nel dossier. La
+		// rigenerazione esplicita bypassa il guard: ri-proporre È l'intento.
 		$existing = $this->dossier->get( $project_id );
-		if ( 'outline_proposed' === $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT )
+		if ( ! $regenerate
+			&& 'outline_proposed' === $this->states->state_of( $project_id, StateMachine::TYPE_PROJECT )
 			&& ! empty( $existing['outline'] ) ) {
 			return;
 		}
 
-		$config = $this->projects->get_config( $project_id );
+		$config  = $this->projects->get_config( $project_id );
+		$current = array_values( (array) ( $existing['outline'] ?? array() ) );
+		$keep    = array_values( array_map( 'intval', (array) ( $args['keep'] ?? array() ) ) );
+
+		$context = array( 'brief' => $config['brief'] ?? array() );
+		if ( $regenerate && ! empty( $current ) ) {
+			$context['current_outline'] = array();
+			foreach ( $current as $i => $entry ) {
+				$context['current_outline'][] = array(
+					'position' => $i + 1,
+					'title'    => (string) ( $entry['title'] ?? '' ),
+					'brief'    => (string) ( $entry['brief'] ?? '' ),
+					'locked'   => in_array( $i, $keep, true ),
+				);
+			}
+			if ( ! empty( $args['feedback'] ) ) {
+				$context['feedback'] = (string) $args['feedback'];
+			}
+		}
 
 		$result   = $this->provider->complete(
-			new AiRequest(
-				AiRequest::PHASE_OUTLINE,
-				array( 'brief' => $config['brief'] ?? array() ),
-				$project_id
-			)
+			new AiRequest( AiRequest::PHASE_OUTLINE, $context, $project_id )
 		);
 		$chapters = $result->content['chapters'] ?? array();
 		if ( empty( $chapters ) || ! is_array( $chapters ) ) {
 			throw new \RuntimeException( 'Il provider non ha proposto capitoli.' );
+		}
+
+		if ( $regenerate ) {
+			$chapters = self::enforce_locked( array_values( $chapters ), $current, $keep );
 		}
 
 		if ( null === $existing ) {
@@ -97,6 +119,49 @@ final class ProposeOutlineJob implements JobInterface {
 		);
 
 		$this->states->transition( $project_id, StateMachine::TYPE_PROJECT, 'outline_proposed', array( 'job' => self::name() ) );
+	}
+
+	/**
+	 * Garanzia deterministica sui capitoli bloccati: qualunque cosa proponga
+	 * l'AI, le voci "Mantieni" tornano nell'indice con titolo e brief
+	 * originali. Match per titolo; se l'AI le ha rimosse, vengono reinserite
+	 * alla loro posizione originale.
+	 *
+	 * @param array<int, array<string, mixed>> $proposed Capitoli proposti dall'AI.
+	 * @param array<int, array<string, mixed>> $current  Outline attuale nel dossier.
+	 * @param int[]                            $keep     Indici (0-based) da non modificare.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function enforce_locked( array $proposed, array $current, array $keep ): array {
+		sort( $keep );
+		$normalize = static fn( string $title ): string => mb_strtolower( trim( $title ) );
+
+		foreach ( $keep as $index ) {
+			if ( ! isset( $current[ $index ] ) ) {
+				continue;
+			}
+			$locked = array(
+				'title'           => (string) ( $current[ $index ]['title'] ?? '' ),
+				'brief'           => (string) ( $current[ $index ]['brief'] ?? '' ),
+				'planned_sources' => (array) ( $current[ $index ]['planned_sources'] ?? array() ),
+			);
+
+			$found = null;
+			foreach ( $proposed as $i => $chapter ) {
+				if ( $normalize( (string) ( $chapter['title'] ?? '' ) ) === $normalize( $locked['title'] ) ) {
+					$found = $i;
+					break;
+				}
+			}
+
+			if ( null !== $found ) {
+				$proposed[ $found ] = $locked;
+			} else {
+				array_splice( $proposed, min( $index, count( $proposed ) ), 0, array( $locked ) );
+			}
+		}
+
+		return array_values( $proposed );
 	}
 
 	public function on_failure( array $args, \Throwable $e ): void {

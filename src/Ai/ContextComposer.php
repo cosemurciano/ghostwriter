@@ -57,6 +57,9 @@ final class ContextComposer {
 		if ( ! empty( $ctx['brief'] ) ) {
 			$parts[] = "BRIEF DEL LIBRO:\n" . self::json( $ctx['brief'] );
 		}
+		if ( ! empty( $ctx['current_outline'] ) ) {
+			$parts[] = "INDICE ATTUALE DA RIGENERARE — le voci con locked=true NON vanno modificate né rimosse (stesso titolo, stesso brief, stessa posizione relativa nel percorso); rigenera liberamente le altre: numero, ordine e taglio dei capitoli possono cambiare, purché il percorso resti progressivo e coerente con le voci bloccate:\n" . self::json( $ctx['current_outline'] );
+		}
 		if ( ! empty( $ctx['dossier'] ) ) {
 			$parts[] = "DOSSIER DEL PROGETTO (memoria di continuità):\n" . self::json( $ctx['dossier'] );
 		}

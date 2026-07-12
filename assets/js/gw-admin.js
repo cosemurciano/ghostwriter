@@ -261,9 +261,6 @@
 				config.ai.image_provider = data.image_provider;
 				config.ai.image_model = data.image_model || '';
 			}
-			if ( data.max_cost_eur ) {
-				config.ai.budget = { max_cost_eur: parseFloat( data.max_cost_eur ) };
-			}
 			return { title: data.title, config: config };
 		},
 
@@ -280,6 +277,19 @@
 				} );
 			} );
 			return { outline: outline };
+		},
+
+		// Rigenerazione indice: keep = indici (0-based) dei capitoli spuntati
+		// "Mantieni", che l'AI non deve toccare; feedback guida il resto.
+		regenerateOutline: function ( data, form ) {
+			var keep = [];
+			form.querySelectorAll( '.gw-outline-row' ).forEach( function ( row, index ) {
+				var lock = row.querySelector( 'input[name="keep"]' );
+				if ( lock && lock.checked ) {
+					keep.push( index );
+				}
+			} );
+			return { keep: keep, feedback: data.regen_feedback || '' };
 		},
 
 		// Glossario: righe source/target/note → PUT /projects/{id}/glossary.
@@ -315,7 +325,6 @@
 					model: data.model,
 					image_provider: data.image_provider || '',
 					image_model: data.image_model || '',
-					max_cost_eur: data.max_cost_eur || null,
 				},
 			};
 			if ( data.target_words ) {
@@ -397,7 +406,15 @@
 		}
 		event.preventDefault();
 
-		var parts = form.getAttribute( 'data-gw-form' ).split( ' ' );
+		// Un secondo submit nello stesso form può puntare a un altro endpoint:
+		// <button data-gw-alt-form="POST /..." data-gw-alt-transform="...">.
+		var submitter = event.submitter;
+		var altForm = submitter && submitter.getAttribute( 'data-gw-alt-form' );
+		if ( altForm && submitter.hasAttribute( 'data-gw-confirm' ) && ! window.confirm( cfg.i18n.confirm ) ) {
+			return;
+		}
+
+		var parts = ( altForm || form.getAttribute( 'data-gw-form' ) ).split( ' ' );
 		var method = parts[ 0 ];
 		var path = parts[ 1 ];
 
@@ -419,7 +436,7 @@
 			data[ key ] = value;
 		} );
 
-		var transform = form.getAttribute( 'data-gw-transform' );
+		var transform = ( altForm && submitter.getAttribute( 'data-gw-alt-transform' ) ) || form.getAttribute( 'data-gw-transform' );
 		var body = transform && transforms[ transform ] ? transforms[ transform ]( data, form ) : data;
 
 		api( path, method, body )
