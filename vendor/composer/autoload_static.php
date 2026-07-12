@@ -191,6 +191,7 @@ class ComposerStaticInit732305a0cea106f701f5fa709f8e634b
         'Ghostwriter\\Queue\\Jobs\\ProposeGlossaryJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/ProposeGlossaryJob.php',
         'Ghostwriter\\Queue\\Jobs\\ProposeOutlineJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/ProposeOutlineJob.php',
         'Ghostwriter\\Queue\\Jobs\\ReviewChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/ReviewChapterJob.php',
+        'Ghostwriter\\Queue\\Jobs\\ReviseChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/ReviseChapterJob.php',
         'Ghostwriter\\Queue\\Jobs\\RewriteBlockJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/RewriteBlockJob.php',
         'Ghostwriter\\Queue\\Jobs\\SynopsisJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/SynopsisJob.php',
         'Ghostwriter\\Queue\\Jobs\\TranslateChapterJob' => __DIR__ . '/../..' . '/src/Queue/Jobs/TranslateChapterJob.php',

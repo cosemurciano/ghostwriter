@@ -117,7 +117,12 @@ final class Menu {
 	}
 
 	public function enqueue_assets( string $hook_suffix ): void {
-		if ( ! in_array( $hook_suffix, $this->hooks, true ) ) {
+		// Anche sull'editor del capitolo: l'area prompt dell'Assistente AI
+		// usa la stessa REST API con nonce.
+		$is_chapter_editor = in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true )
+			&& \Ghostwriter\Core\PostTypes::CHAPTER === ( get_current_screen()->post_type ?? '' );
+
+		if ( ! $is_chapter_editor && ! in_array( $hook_suffix, $this->hooks, true ) ) {
 			return;
 		}
 
