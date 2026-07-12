@@ -57,6 +57,7 @@ use Ghostwriter\Media\ImageService;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Repository\RagChunkRepository;
 use Ghostwriter\Repository\UsageRepository;
+use Ghostwriter\Sources\SourceTester;
 use Ghostwriter\Sources\TextExtractor;
 use Ghostwriter\Translation\DerivedProjectFactory;
 use Ghostwriter\Translation\GlossaryService;
@@ -130,6 +131,7 @@ final class Plugin {
 			LocalRagService::class      => static fn( Plugin $c ): object => new LocalRagService( $c->get( RagChunkRepository::class ) ),
 			RagServiceInterface::class  => static fn( Plugin $c ): object => $c->get( LocalRagService::class ),
 			TextExtractor::class        => static fn(): object => new TextExtractor(),
+			SourceTester::class         => static fn(): object => new SourceTester(),
 			ImageService::class         => static fn(): object => new ImageService(),
 			CoverComposer::class        => static fn(): object => new CoverComposer(),
 			Preflight::class            => static fn( Plugin $c ): object => new Preflight( $c->get( SchemaValidator::class ) ),
@@ -173,7 +175,8 @@ final class Plugin {
 				$c->get( DerivedProjectFactory::class ),
 				$c->get( GlossaryService::class ),
 				$c->get( ThemeRegistry::class ),
-				$c->get( Preflight::class )
+				$c->get( Preflight::class ),
+				$c->get( SourceTester::class )
 			),
 			ProjectsPage::class         => static fn( Plugin $c ): object => new ProjectsPage(
 				$c->get( ProjectRepository::class ),

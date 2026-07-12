@@ -84,8 +84,6 @@ final class ProjectsPage {
 			. ' · ' . esc_html( (string) ( $config['format']['trim_width_mm'] ?? '' ) . '×' . (string) ( $config['format']['trim_height_mm'] ?? '' ) . ' mm' )
 			. '</p>';
 
-		$this->render_stepper( $state, $is_translation );
-
 		if ( 'paused_budget' === $state ) {
 			echo '<div class="notice notice-error inline"><p><strong>' . esc_html__( 'Budget superato: pipeline in pausa.', 'ghostwriter' ) . '</strong> '
 				. esc_html__( 'Alza il budget nella config o riprendi dopo verifica.', 'ghostwriter' )
@@ -94,74 +92,65 @@ final class ProjectsPage {
 
 		$this->render_pipeline_actions( $project_id, $state, $is_translation );
 
-		echo '<div id="poststuff"><div id="post-body" class="metabox-holder columns-2">';
-
-		echo '<div id="post-body-content">';
-		if ( $is_translation ) {
-			$this->render_glossary_box( $project_id, $state, $dossier );
-		} else {
-			$this->render_outline_box( $project_id, $state, $dossier );
-		}
-		$this->render_chapters_box( $project_id, $dossier );
-		if ( ! $is_translation ) {
-			$this->render_sources_box( $project_id, $config );
-		}
-		echo '</div>';
-
-		echo '<div id="postbox-container-1" class="postbox-container">';
-		$this->render_cover_box( $project_id, $config );
-		$this->render_export_box( $project_id, $config );
-		$this->render_usage_box( $project_id );
-		$this->render_log_box( $project_id );
-		echo '</div>';
-
-		echo '</div></div>';
-	}
-
-	/**
-	 * Stepper della pipeline: dove si trova il progetto e cosa manca.
-	 */
-	private function render_stepper( string $state, bool $is_translation ): void {
-		$steps = $is_translation
+		// Tab sempre cliccabili: nessun wizard, ogni sezione è accessibile
+		// in qualunque stato (le azioni restano contestuali nella barra sopra).
+		$tabs = $is_translation
 			? array(
-				__( 'Setup', 'ghostwriter' )      => array( 'setup' ),
-				__( 'Glossario', 'ghostwriter' )  => array( 'glossary_proposed', 'glossary_approved' ),
-				__( 'Traduzione', 'ghostwriter' ) => array( 'translating' ),
-				__( 'Revisione', 'ghostwriter' )  => array( 'review' ),
-				__( 'Export', 'ghostwriter' )     => array( 'ready_to_export', 'exported' ),
+				'glossario' => __( 'Glossario', 'ghostwriter' ),
+				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
+				'copertina' => __( 'Copertina', 'ghostwriter' ),
+				'export'    => __( 'Export', 'ghostwriter' ),
+				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
 			)
 			: array(
-				__( 'Setup', 'ghostwriter' )       => array( 'setup', 'sources_ingesting' ),
-				__( 'Indice', 'ghostwriter' )      => array( 'outline_proposed', 'outline_approved' ),
-				__( 'Generazione', 'ghostwriter' ) => array( 'generating' ),
-				__( 'Revisione', 'ghostwriter' )   => array( 'review' ),
-				__( 'Copertina', 'ghostwriter' )   => array( 'cover_pending' ),
-				__( 'Export', 'ghostwriter' )      => array( 'ready_to_export', 'exported' ),
+				'indice'    => __( 'Indice', 'ghostwriter' ),
+				'capitoli'  => __( 'Capitoli', 'ghostwriter' ),
+				'fonti'     => __( 'Fonti', 'ghostwriter' ),
+				'copertina' => __( 'Copertina', 'ghostwriter' ),
+				'export'    => __( 'Export', 'ghostwriter' ),
+				'attivita'  => __( 'Costi e attività', 'ghostwriter' ),
 			);
 
-		$current = 0;
-		$index   = 0;
-		foreach ( $steps as $states ) {
-			if ( in_array( $state, $states, true ) ) {
-				$current = $index;
-			}
-			++$index;
-		}
-		if ( 'exported' === $state ) {
-			$current = count( $steps ); // Tutto completato.
-		}
+		$default_tab = match ( $state ) {
+			'setup', 'sources_ingesting' => $is_translation ? 'glossario' : 'fonti',
+			'outline_proposed', 'outline_approved' => 'indice',
+			'glossary_proposed', 'glossary_approved' => 'glossario',
+			'generating', 'translating', 'review' => 'capitoli',
+			'cover_pending' => 'copertina',
+			'ready_to_export', 'exported' => 'export',
+			default => array_key_first( $tabs ),
+		};
 
-		echo '<ol class="gw-stepper">';
-		$index = 0;
-		foreach ( $steps as $label => $states ) {
-			$class = $index < $current ? 'done' : ( $index === $current && 'exported' !== $state ? 'current' : 'todo' );
-			if ( 'paused_budget' === $state ) {
-				$class = 'todo';
-			}
-			echo '<li class="' . esc_attr( $class ) . '"><span class="gw-step-dot"></span>' . esc_html( $label ) . '</li>';
-			++$index;
+		echo '<nav class="nav-tab-wrapper gw-tabs">';
+		foreach ( $tabs as $key => $label ) {
+			echo '<a href="#' . esc_attr( $key ) . '" class="nav-tab' . ( $key === $default_tab ? ' nav-tab-active' : '' ) . '" data-gw-tab="' . esc_attr( $key ) . '">' . esc_html( $label ) . '</a>';
 		}
-		echo '</ol>';
+		echo '</nav>';
+
+		$panel = function ( string $key, callable $content ) use ( $default_tab ): void {
+			echo '<div class="gw-panel" data-gw-panel="' . esc_attr( $key ) . '"' . ( $key === $default_tab ? '' : ' style="display:none"' ) . '>';
+			$content();
+			echo '</div>';
+		};
+
+		if ( $is_translation ) {
+			$panel( 'glossario', fn() => $this->render_glossary_box( $project_id, $state, $dossier ) );
+		} else {
+			$panel( 'indice', fn() => $this->render_outline_box( $project_id, $state, $dossier ) );
+		}
+		$panel( 'capitoli', fn() => $this->render_chapters_box( $project_id, $dossier ) );
+		if ( ! $is_translation ) {
+			$panel( 'fonti', fn() => $this->render_sources_box( $project_id, $config ) );
+		}
+		$panel( 'copertina', fn() => $this->render_cover_box( $project_id, $config ) );
+		$panel( 'export', fn() => $this->render_export_box( $project_id, $config ) );
+		$panel(
+			'attivita',
+			function () use ( $project_id ): void {
+				$this->render_usage_box( $project_id );
+				$this->render_log_box( $project_id );
+			}
+		);
 	}
 
 	private function render_pipeline_actions( int $project_id, string $state, bool $is_translation ): void {
@@ -363,34 +352,78 @@ final class ProjectsPage {
 	}
 
 	/**
+	 * Fonti: registry con test di raggiungibilità, media WP, path PDF, URL,
+	 * articoli del sito (spunta) e vector store remoto in base al provider.
+	 *
 	 * @param array<string, mixed> $config Config progetto.
 	 */
 	private function render_sources_box( int $project_id, array $config ): void {
 		$registry = (array) ( $config['sources']['registry'] ?? array() );
+		$provider = (string) ( $config['ai']['provider'] ?? 'mock' );
 
-		$this->box_open( esc_html__( 'Fonti', 'ghostwriter' ) );
-
+		$this->box_open( esc_html__( 'Fonti registrate', 'ghostwriter' ) );
 		if ( ! empty( $registry ) ) {
 			echo '<table class="widefat striped gw-clean-table"><tbody>';
 			foreach ( $registry as $source ) {
-				echo '<tr><td><strong>' . esc_html( (string) ( $source['title'] ?? $source['source_id'] ?? '' ) ) . '</strong>'
-					. '<br/><span class="gw-muted">' . esc_html( (string) ( $source['type'] ?? '' ) . ' · ' . (string) ( $source['license'] ?? '' ) ) . '</span></td>'
+				$sid = (string) ( $source['source_id'] ?? '' );
+				echo '<tr><td><strong>' . esc_html( (string) ( $source['title'] ?? $sid ) ) . '</strong>'
+					. '<br/><span class="gw-muted">' . esc_html( (string) ( $source['type'] ?? '' ) . ' · ' . (string) ( $source['license'] ?? '' ) )
+					. ( ! empty( $source['site_posts'] ) ? ' · ' . esc_html__( 'articoli del sito', 'ghostwriter' ) : '' )
+					. ( ! empty( $source['attachment_id'] ) ? ' · media #' . (int) $source['attachment_id'] : '' )
+					. '</span></td>'
 					. '<td>' . $this->state_badge( (string) ( $source['ingest_status'] ?? 'registrata' ) )
 					. ( ! empty( $source['chunk_count'] ) ? ' <span class="gw-muted">' . (int) $source['chunk_count'] . ' ' . esc_html__( 'frammenti', 'ghostwriter' ) . '</span>' : '' )
+					. '</td><td class="gw-row-actions">'
+					. '<button class="button button-small" data-gw-action="POST /projects/' . $project_id . '/sources/test" data-gw-body="' . esc_attr( (string) wp_json_encode( array( 'source_id' => $sid ) ) ) . '" data-gw-noreload>' . esc_html__( 'Test', 'ghostwriter' ) . '</button>'
 					. '</td></tr>';
 			}
 			echo '</tbody></table>';
 		} else {
-			echo '<p class="gw-muted">' . esc_html__( 'Le fonti alimentano il RAG del progetto: i capitoli citano con provenienza, mai a memoria.', 'ghostwriter' ) . '</p>';
+			echo '<p class="gw-muted">' . esc_html__( 'Nessuna fonte registrata: i capitoli citeranno solo la conoscenza del modello, senza provenienza verificabile.', 'ghostwriter' ) . '</p>';
 		}
+		$this->box_close();
 
-		echo '<form data-gw-form="POST /projects/' . $project_id . '/sources" data-gw-transform="addSource" class="gw-source-form">'
+		// Articoli del sito come fonte (spunta).
+		$has_site_posts = false;
+		foreach ( $registry as $source ) {
+			if ( ! empty( $source['site_posts'] ) ) {
+				$has_site_posts = true;
+			}
+		}
+		$this->box_open( esc_html__( 'Aggiungi fonte', 'ghostwriter' ) );
+		echo '<p><label><input type="checkbox" data-gw-site-posts="' . $project_id . '"' . ( $has_site_posts ? ' checked disabled' : '' ) . '/> '
+			. esc_html__( 'Usa tutti gli articoli pubblicati del sito come fonte', 'ghostwriter' ) . '</label>'
+			. ( $has_site_posts ? ' <span class="gw-muted">' . esc_html__( '(già registrati)', 'ghostwriter' ) . '</span>' : '' ) . '</p><hr/>';
+
+		echo '<form data-gw-form="POST /projects/' . $project_id . '/sources" data-gw-transform="addSource" class="gw-source-grid">'
 			. '<input type="text" name="title" placeholder="' . esc_attr__( 'Titolo della fonte', 'ghostwriter' ) . '" required />'
-			. '<select name="type"><option value="url">URL</option><option value="pdf">PDF (path server)</option><option value="open_data">open data</option></select>'
-			. '<input type="text" name="location" placeholder="https://… o /percorso/file.pdf" required />'
+			. '<select name="type" data-gw-source-type>'
+			. '<option value="url">' . esc_html__( 'URL (pagina o open data)', 'ghostwriter' ) . '</option>'
+			. '<option value="media">' . esc_html__( 'Media WordPress (PDF/testo)', 'ghostwriter' ) . '</option>'
+			. '<option value="pdf">' . esc_html__( 'PDF (path sul server)', 'ghostwriter' ) . '</option>'
+			. '</select>'
+			. '<div data-gw-location-url><input type="text" name="location" placeholder="https://…" /></div>'
+			. '<div data-gw-location-media style="display:none"><button type="button" class="button" data-gw-pick-media>' . esc_html__( 'Scegli dai media…', 'ghostwriter' ) . '</button> <span class="gw-media-chosen gw-muted"></span><input type="hidden" name="attachment_id" /></div>'
 			. '<select name="license"><option value="CC-BY-4.0">CC-BY-4.0</option><option value="CC0">CC0</option><option value="pubblico dominio">' . esc_html__( 'pubblico dominio', 'ghostwriter' ) . '</option><option value="proprietaria">' . esc_html__( 'proprietaria', 'ghostwriter' ) . '</option></select>'
-			. '<label class="gw-inline-label"><input type="checkbox" name="attribution_required" value="1" /> ' . esc_html__( 'attribuzione', 'ghostwriter' ) . '</label>'
-			. '<button class="button">' . esc_html__( 'Registra e ingerisci', 'ghostwriter' ) . '</button>'
+			. '<label class="gw-inline-label"><input type="checkbox" name="attribution_required" value="1" /> ' . esc_html__( 'attribuzione richiesta', 'ghostwriter' ) . '</label>'
+			. '<p class="gw-actions"><button type="button" class="button" data-gw-test-source="' . $project_id . '">' . esc_html__( 'Testa raggiungibilità', 'ghostwriter' ) . '</button> '
+			. '<button class="button button-primary">' . esc_html__( 'Registra e ingerisci', 'ghostwriter' ) . '</button></p>'
+			. '</form>';
+		$this->box_close();
+
+		// Vector store remoto (dipende dal provider configurato).
+		$vector_store_id = (string) ( $config['sources']['vector_store_id'] ?? '' );
+		$this->box_open( esc_html__( 'Vector store remoto', 'ghostwriter' ) );
+		echo '<p class="gw-muted">' . esc_html(
+			'openai' === $provider
+				? __( 'ID di un vector store OpenAI già popolato (vs_…): verrà agganciato al progetto.', 'ghostwriter' )
+				/* translators: %s: provider */
+				: sprintf( __( 'Il provider configurato (%s) non usa vector store remoti: le fonti locali qui sopra alimentano il RAG del progetto.', 'ghostwriter' ), $provider )
+		) . '</p>';
+		echo '<form data-gw-form="PUT /projects/' . $project_id . '/vectorstore" class="gw-actions">'
+			. '<input type="text" name="vector_store_id" value="' . esc_attr( $vector_store_id ) . '" placeholder="vs_…" class="regular-text" /> '
+			. '<button type="button" class="button" data-gw-action="POST /projects/' . $project_id . '/vectorstore/test" data-gw-from-input="vector_store_id" data-gw-noreload>' . esc_html__( 'Test', 'ghostwriter' ) . '</button> '
+			. '<button class="button">' . esc_html__( 'Salva', 'ghostwriter' ) . '</button>'
 			. '</form>';
 		$this->box_close();
 	}

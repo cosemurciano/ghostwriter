@@ -15,6 +15,7 @@ use Ghostwriter\Queue\Jobs\ProposeOutlineJob;
 use Ghostwriter\Repository\ProjectRepository;
 use Ghostwriter\Schema\SchemaValidationException;
 use Ghostwriter\Translation\DerivedProjectFactory;
+use Ghostwriter\Sources\SourceTester;
 use Ghostwriter\Translation\GlossaryService;
 use WP_Error;
 use WP_REST_Request;
@@ -40,7 +41,8 @@ final class ProjectsController {
 		private DerivedProjectFactory $derived,
 		private GlossaryService $glossary,
 		private \Ghostwriter\Rendering\ThemeRegistry $themes,
-		private \Ghostwriter\Rendering\Preflight $preflight_service
+		private \Ghostwriter\Rendering\Preflight $preflight_service,
+		private SourceTester $tester
 	) {
 	}
 
@@ -73,6 +75,36 @@ final class ProjectsController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'add_source' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/sources/test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'test_source' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/vectorstore',
+			array(
+				'methods'             => 'PUT',
+				'callback'            => array( $this, 'update_vector_store' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/projects/(?P<id>\d+)/vectorstore/test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'test_vector_store' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -297,6 +329,63 @@ final class ProjectsController {
 		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Test di raggiungibilità di una fonte: registrata (source_id) o
+	 * ancora da registrare (source nel body).
+	 */
+	public function test_source( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$source = $request->get_param( 'source' );
+		if ( ! is_array( $source ) ) {
+			$source_id = (string) $request->get_param( 'source_id' );
+			$source    = $this->sources->find( $project_id, $source_id );
+			if ( null === $source ) {
+				return new WP_Error( 'gw_not_found', 'Fonte non registrata.', array( 'status' => 404 ) );
+			}
+		}
+
+		$result = $this->tester->test( $source );
+		return new WP_REST_Response( array( 'ok' => $result['ok'], 'message' => ( $result['ok'] ? '✓ ' : '✗ ' ) . $result['message'] ), $result['ok'] ? 200 : 422 );
+	}
+
+	public function update_vector_store( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$config = $this->projects->get_config( $project_id );
+		$value  = trim( (string) $request->get_param( 'vector_store_id' ) );
+
+		$config['sources']                    = (array) ( $config['sources'] ?? array() );
+		$config['sources']['vector_store_id'] = '' !== $value ? $value : null;
+
+		try {
+			$this->projects->save_config( $project_id, $config );
+		} catch ( SchemaValidationException $e ) {
+			return new WP_Error( 'gw_invalid', $e->getMessage(), array( 'status' => 422 ) );
+		}
+
+		return new WP_REST_Response( array( 'vector_store_id' => $config['sources']['vector_store_id'] ) );
+	}
+
+	public function test_vector_store( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$project_id = (int) $request['id'];
+		if ( ! $this->projects->exists( $project_id ) ) {
+			return self::not_found();
+		}
+
+		$config = $this->projects->get_config( $project_id );
+		$id     = (string) ( $request->get_param( 'vector_store_id' ) ?: ( $config['sources']['vector_store_id'] ?? '' ) );
+		$result = $this->tester->test_vector_store( $id, (string) ( $config['ai']['provider'] ?? 'mock' ) );
+
+		return new WP_REST_Response( array( 'ok' => $result['ok'], 'message' => ( $result['ok'] ? '✓ ' : '✗ ' ) . $result['message'] ), $result['ok'] ? 200 : 422 );
 	}
 
 	public function propose_outline( WP_REST_Request $request ): WP_REST_Response|WP_Error {
