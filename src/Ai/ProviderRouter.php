@@ -37,12 +37,20 @@ final class ProviderRouter implements ProviderInterface {
 	/**
 	 * Provider per le immagini: ai.image_provider/ai.image_model se dichiarati,
 	 * altrimenti il provider testuale (che può non supportare le immagini:
-	 * errore esplicito, mai degrado silenzioso).
+	 * errore esplicito, mai degrado silenzioso). Il modello NON ricade mai su
+	 * ai.model: un modello testuale (es. gpt-5) non esiste sull'endpoint
+	 * immagini; senza image_model si usa il default di catalogo del provider.
 	 */
 	public function resolve_image( int $project_id ): ProviderInterface {
 		$config   = $this->projects->get_config( $project_id );
-		$provider = (string) ( $config['ai']['image_provider'] ?? $config['ai']['provider'] ?? 'mock' );
-		$model    = (string) ( $config['ai']['image_model'] ?? $config['ai']['model'] ?? '' );
+		$provider = (string) ( $config['ai']['image_provider'] ?? '' );
+		if ( '' === $provider ) {
+			$provider = (string) ( $config['ai']['provider'] ?? 'mock' );
+		}
+		$model = (string) ( $config['ai']['image_model'] ?? '' );
+		if ( '' === $model ) {
+			$model = ModelCatalog::default_for( $provider, 'image' );
+		}
 
 		$override = apply_filters( 'gw_ai_image_provider', null, $provider, $model, $project_id );
 		if ( $override instanceof ProviderInterface ) {

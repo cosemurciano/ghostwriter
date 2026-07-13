@@ -339,6 +339,8 @@ final class ProjectsPage {
 			return;
 		}
 
+		$jobs = $this->queue->for_project( $project_id );
+
 		if ( PipelineRouter::is_stopped( $project_id ) ) {
 			echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__( 'Elaborazione ferma.', 'ghostwriter' ) . '</strong> '
 				. esc_html__( 'Nessun nuovo lavoro AI parte finché non riprendi.', 'ghostwriter' )
@@ -379,7 +381,14 @@ final class ProjectsPage {
 					$button( __( 'Approva indice e genera il libro', 'ghostwriter' ), "POST /projects/{$project_id}/outline/approve", 'button button-primary', __( 'L\'approvazione governa tutta la spesa a valle.', 'ghostwriter' ) );
 					break;
 				case 'generating':
-					echo '<span class="spinner is-active"></span> ' . esc_html__( 'Generazione capitoli in corso: la pagina riflette lo stato della coda.', 'ghostwriter' );
+					// Capitolo per capitolo (default) il progetto resta in
+					// 'generating' anche a coda vuota: niente spinner se
+					// nessun lavoro è davvero in corso.
+					if ( ! empty( $jobs ) ) {
+						echo '<span class="spinner is-active"></span> ' . esc_html__( 'Generazione capitoli in corso: la pagina riflette lo stato della coda.', 'ghostwriter' );
+					} else {
+						echo '<span class="gw-muted">' . esc_html__( 'Nessuna elaborazione in corso. Avvia il prossimo capitolo con "Scrivi (AI)" dalla tab Capitoli.', 'ghostwriter' ) . '</span>';
+					}
 					break;
 				case 'review':
 					$button( __( 'Chiudi revisione', 'ghostwriter' ), "POST /projects/{$project_id}/advance", 'button button-primary', __( 'Rivedi i capitoli, riscrivi i blocchi che non convincono, poi chiudi.', 'ghostwriter' ) );
@@ -398,7 +407,7 @@ final class ProjectsPage {
 
 		echo '</div>';
 
-		$this->render_queue_widget( $project_id, $state );
+		$this->render_queue_widget( $project_id, $state, $jobs );
 	}
 
 	/**
@@ -448,8 +457,11 @@ final class ProjectsPage {
 	 * aggiornata via polling (GET /projects/{id}/queue) da gw-admin.js, che
 	 * ricarica la pagina quando lo stato cambia o i job finiscono.
 	 */
-	private function render_queue_widget( int $project_id, string $state ): void {
-		$jobs = $this->queue->for_project( $project_id );
+	/**
+	 * @param array<int, array<string, mixed>>|null $jobs Coda già letta dal chiamante (evita la doppia query).
+	 */
+	private function render_queue_widget( int $project_id, string $state, ?array $jobs = null ): void {
+		$jobs ??= $this->queue->for_project( $project_id );
 
 		echo '<div class="gw-queue" data-gw-queue data-gw-project="' . $project_id . '" data-gw-state="' . esc_attr( $state ) . '"'
 			. ( empty( $jobs ) ? ' style="display:none"' : '' ) . '>';

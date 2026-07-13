@@ -586,10 +586,12 @@
 		}
 		var html = '<table class="widefat striped"><tbody>';
 		content.blocks.forEach( function ( block ) {
+			var unresolvedFigure = 'figura' === block.type && ! ( block.props && block.props.attachment_id );
 			html += '<tr>'
 				+ '<td style="width:110px"><code>' + escapeHtml( block.type ) + '</code><br/><span class="gw-muted">v' + ( block.version || 1 ) + '</span></td>'
 				+ '<td>' + escapeHtml( blockExcerpt( block ) ) + '</td>'
-				+ '<td style="width:200px">'
+				+ '<td style="width:260px">'
+				+ ( unresolvedFigure ? '<button class="button button-small button-primary" data-gw-action="POST /chapters/' + chapterId + '/blocks/' + encodeURIComponent( block.id ) + '/image" data-gw-confirm>Genera immagine</button> ' : '' )
 				+ '<button class="button button-small" data-gw-action="POST /chapters/' + chapterId + '/blocks/' + encodeURIComponent( block.id ) + '/rewrite" data-gw-prompt-feedback>Riscrivi</button> '
 				+ '<button class="button button-small" data-gw-block-versions="' + chapterId + '|' + escapeHtml( block.id ) + '">Versioni</button>'
 				+ '</td></tr>'

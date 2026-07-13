@@ -13,6 +13,7 @@ use Ghostwriter\Ai\ContextComposer;
 use Ghostwriter\Ai\NullRagService;
 use Ghostwriter\Ai\OpenAiProvider;
 use Ghostwriter\Ai\PhaseSchemas;
+use Ghostwriter\Ai\ProviderRouter;
 use Ghostwriter\Ai\SkillsManager;
 use Ghostwriter\Repository\ProjectRepository;
 use PHPUnit\Framework\TestCase;
@@ -299,5 +300,38 @@ final class AiLayerTest extends TestCase {
 		}
 		self::assertSame( 'sk-ant-da-wpconfig', ApiKeys::anthropic() );
 		self::assertSame( 'sk-ant…nfig', ApiKeys::mask( 'sk-ant-da-wpconfig' ) );
+	}
+
+	// --- ProviderRouter ----------------------------------------------------
+
+	public function test_image_router_never_falls_back_to_text_model(): void {
+		Functions\when( 'apply_filters' )->alias( static fn( string $hook, $value ) => $value );
+		Functions\when( '__' )->returnArg();
+		if ( ! defined( 'GHOSTWRITER_OPENAI_API_KEY' ) ) {
+			define( 'GHOSTWRITER_OPENAI_API_KEY', 'sk-openai-test' );
+		}
+
+		// Provider immagini dichiarato ma image_model assente: il modello NON
+		// deve ricadere su ai.model (gpt-5 non esiste sull'endpoint immagini),
+		// bensì sul default di catalogo del provider.
+		$config                          = $this->config;
+		$config['ai']['provider']        = 'openai';
+		$config['ai']['model']           = 'gpt-5';
+		$config['ai']['image_provider']  = 'openai';
+
+		$projects = new class( $config ) extends ProjectRepository {
+			public function __construct( private array $config ) { // phpcs:ignore
+			}
+			public function get_config( int $project_id ): array {
+				return $this->config;
+			}
+		};
+
+		$router   = new ProviderRouter( $projects, $this->composer, $this->schemas );
+		$provider = $router->resolve_image( 1 );
+
+		self::assertInstanceOf( OpenAiProvider::class, $provider );
+		$model = new \ReflectionProperty( OpenAiProvider::class, 'model' );
+		self::assertSame( 'gpt-image-1', $model->getValue( $provider ) );
 	}
 }
