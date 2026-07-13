@@ -157,6 +157,7 @@ class ComposerStaticInit732305a0cea106f701f5fa709f8e634b
         'Ghostwriter\\Ai\\ImageResult' => __DIR__ . '/../..' . '/src/Ai/ImageResult.php',
         'Ghostwriter\\Ai\\LocalRagService' => __DIR__ . '/../..' . '/src/Ai/LocalRagService.php',
         'Ghostwriter\\Ai\\MockProvider' => __DIR__ . '/../..' . '/src/Ai/MockProvider.php',
+        'Ghostwriter\\Ai\\ModelCatalog' => __DIR__ . '/../..' . '/src/Ai/ModelCatalog.php',
         'Ghostwriter\\Ai\\NullRagService' => __DIR__ . '/../..' . '/src/Ai/NullRagService.php',
         'Ghostwriter\\Ai\\OpenAiProvider' => __DIR__ . '/../..' . '/src/Ai/OpenAiProvider.php',
         'Ghostwriter\\Ai\\PhaseSchemas' => __DIR__ . '/../..' . '/src/Ai/PhaseSchemas.php',

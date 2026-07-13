@@ -494,3 +494,11 @@
 	grid-column: 1 / -1;
 	margin: 4px 0 0;
 }
+
+.gw-model-picker select {
+	max-width: 340px;
+}
+
+.gw-model-picker .gw-model-custom {
+	min-width: 220px;
+}
