@@ -9,6 +9,7 @@ use Ghostwriter\Domain\StateMachine;
 use Ghostwriter\Queue\Dispatcher;
 use Ghostwriter\Queue\Jobs\DraftChapterJob;
 use Ghostwriter\Queue\Jobs\GenerateEditorImageJob;
+use Ghostwriter\Queue\Jobs\GenerateImageJob;
 use Ghostwriter\Queue\Jobs\ReviseChapterJob;
 use Ghostwriter\Queue\PipelineRouter;
 use Ghostwriter\Repository\ChapterRepository;
@@ -112,6 +113,16 @@ final class ChaptersController {
 			array(
 				'methods'             => 'POST',
 				'callback'            => $this->guarded( 'retry' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			ProjectsController::REST_NAMESPACE,
+			'/chapters/(?P<id>\d+)/blocks/(?P<block_id>[A-Za-z0-9_-]+)/image',
+			array(
+				'methods'             => 'POST',
+				'callback'            => $this->guarded( 'generate_block_image' ),
 				'permission_callback' => $manage,
 			)
 		);
@@ -391,6 +402,55 @@ final class ChaptersController {
 		} catch ( \RuntimeException $e ) {
 			return new WP_Error( 'gw_rewrite_rejected', $e->getMessage(), array( 'status' => 409 ) );
 		}
+
+		return new WP_REST_Response( array( 'queued' => true ), 202 );
+	}
+
+	/**
+	 * Genera l'immagine di un blocco figura ancora irrisolto (placeholder
+	 * con image_brief ma senza attachment). Un prompt opzionale sostituisce
+	 * o fornisce il brief prima dell'accodamento.
+	 */
+	public function generate_block_image( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$chapter_id = (int) $request['id'];
+		$block_id   = (string) $request['block_id'];
+		if ( ! $this->chapters->exists( $chapter_id ) ) {
+			return self::not_found( 'Capitolo' );
+		}
+
+		$project_id = $this->chapters->get_project_id( $chapter_id );
+		if ( PipelineRouter::is_stopped( $project_id ) ) {
+			return new WP_Error( 'gw_pipeline_stopped', 'Elaborazione ferma: riprendila prima di generare immagini.', array( 'status' => 409 ) );
+		}
+
+		$config = $this->projects->get_config( $project_id );
+		if ( '' === (string) ( $config['ai']['image_provider'] ?? '' ) ) {
+			return new WP_Error( 'gw_no_image_provider', 'Nessun provider immagini configurato: impostalo nella tab Impostazioni del progetto (Motore AI → Immagini).', array( 'status' => 409 ) );
+		}
+
+		$block = $this->chapters->find_block( $chapter_id, $block_id );
+		if ( null === $block ) {
+			return self::not_found( 'Blocco' );
+		}
+		if ( 'figura' !== ( $block['type'] ?? '' ) ) {
+			return new WP_Error( 'gw_invalid_block', 'Il blocco non è una figura: la generazione immagini vale solo per le figure.', array( 'status' => 409 ) );
+		}
+		if ( ! empty( $block['props']['attachment_id'] ) ) {
+			return new WP_Error( 'gw_image_exists', 'La figura ha già un\'immagine: per sostituirla rimuovila prima dall\'editor del capitolo.', array( 'status' => 409 ) );
+		}
+
+		$prompt = trim( sanitize_textarea_field( (string) $request->get_param( 'prompt' ) ) );
+		if ( '' !== $prompt ) {
+			$block['props']['image_brief'] = $prompt;
+			$this->chapters->replace_block( $chapter_id, $block );
+		} elseif ( '' === trim( (string) ( $block['props']['image_brief'] ?? '' ) ) ) {
+			return new WP_Error( 'gw_invalid_params', 'La figura non ha una descrizione (image_brief): scrivi cosa deve rappresentare.', array( 'status' => 400 ) );
+		}
+
+		$this->dispatcher->dispatch(
+			GenerateImageJob::class,
+			array( 'project_id' => $project_id, 'chapter_id' => $chapter_id, 'block_id' => $block_id )
+		);
 
 		return new WP_REST_Response( array( 'queued' => true ), 202 );
 	}

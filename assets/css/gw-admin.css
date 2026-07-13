@@ -502,3 +502,16 @@
 .gw-model-picker .gw-model-custom {
 	min-width: 220px;
 }
+
+.gw-block-action {
+	margin: 0 0 12px;
+	padding: 8px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+}
+
+.gw-block-action .dashicons {
+	font-size: 16px;
+	line-height: 1.3;
+}

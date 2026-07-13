@@ -150,7 +150,78 @@ final class ChapterEditor {
 				'side',
 				'high'
 			);
+
+			add_meta_box(
+				'gw-chapter-blocks-ai',
+				__( 'Blocchi speciali (AI)', 'ghostwriter' ),
+				array( $this, 'render_blocks_box' ),
+				PostTypes::CHAPTER,
+				'side',
+				'default'
+			);
 		}
+	}
+
+	/**
+	 * Blocchi che l'editor visuale non può generare da sé: figure senza
+	 * immagine (Genera immagine) e blocchi complessi bloccati come i box di
+	 * approfondimento (Riscrivi con feedback). Le richieste vanno in coda;
+	 * al termine la pagina si ricarica da sola (stesso watch dell'assistente).
+	 */
+	public function render_blocks_box( \WP_Post $post ): void {
+		$content = $this->chapters->get_content( $post->ID );
+		$blocks  = (array) ( $content['blocks'] ?? array() );
+
+		$figures = array();
+		$locked  = array();
+		foreach ( $blocks as $block ) {
+			$type = (string) ( $block['type'] ?? '' );
+			if ( 'figura' === $type && empty( $block['props']['attachment_id'] ) ) {
+				$figures[] = $block;
+			} elseif ( in_array( $type, array( 'box_approfondimento', 'esercizio', 'blurb' ), true ) ) {
+				$locked[] = $block;
+			}
+		}
+
+		if ( empty( $figures ) && empty( $locked ) ) {
+			echo '<p class="gw-muted">' . esc_html__( 'Nessun blocco da generare: le figure hanno tutte un\'immagine e non ci sono box bloccati. I blocchi di testo si modificano direttamente nell\'editor.', 'ghostwriter' ) . '</p>';
+			return;
+		}
+
+		echo '<div data-gw-revise-watch="' . (int) $post->ID . '">';
+
+		foreach ( $figures as $block ) {
+			$brief = (string) ( $block['props']['image_brief'] ?? '' );
+			echo '<div class="gw-block-action"><p class="gw-muted" style="margin:0 0 4px">'
+				. '<span class="dashicons dashicons-format-image"></span> '
+				. esc_html( '' !== $brief ? wp_html_excerpt( $brief, 90, '…' ) : __( 'Figura senza descrizione', 'ghostwriter' ) ) . '</p>'
+				. '<button type="button" class="button button-small button-primary" style="width:100%"'
+				. ' data-gw-action="POST /chapters/' . (int) $post->ID . '/blocks/' . esc_attr( (string) ( $block['id'] ?? '' ) ) . '/image" data-gw-confirm>'
+				. esc_html__( 'Genera immagine (AI)', 'ghostwriter' ) . '</button></div>';
+		}
+
+		foreach ( $locked as $block ) {
+			$title = (string) ( $block['props']['title'] ?? '' );
+			echo '<div class="gw-block-action"><p class="gw-muted" style="margin:0 0 4px">'
+				. '<span class="dashicons dashicons-lock"></span> '
+				. esc_html( self::block_type_label( (string) ( $block['type'] ?? '' ) ) . ( '' !== $title ? ': ' . wp_html_excerpt( $title, 60, '…' ) : '' ) ) . '</p>'
+				. '<button type="button" class="button button-small" style="width:100%"'
+				. ' data-gw-action="POST /chapters/' . (int) $post->ID . '/blocks/' . esc_attr( (string) ( $block['id'] ?? '' ) ) . '/rewrite" data-gw-prompt-feedback>'
+				. esc_html__( 'Riscrivi con l\'AI…', 'ghostwriter' ) . '</button></div>';
+		}
+
+		echo '<p class="gw-muted gw-assistant-status" style="display:none"><span class="spinner is-active" style="float:none;margin:0 4px 0 0"></span>'
+			. esc_html__( 'Lavoro in coda: la pagina si ricarica da sola al termine. Non salvare nel frattempo.', 'ghostwriter' ) . '</p>';
+		echo '</div>';
+	}
+
+	private static function block_type_label( string $type ): string {
+		return match ( $type ) {
+			'box_approfondimento' => __( 'Box di approfondimento', 'ghostwriter' ),
+			'esercizio'           => __( 'Esercizio', 'ghostwriter' ),
+			'blurb'               => __( 'Blurb', 'ghostwriter' ),
+			default               => $type,
+		};
 	}
 
 	private function is_manual_chapter( int $chapter_id ): bool {
