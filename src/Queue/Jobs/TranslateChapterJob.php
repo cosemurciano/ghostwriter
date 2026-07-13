@@ -159,9 +159,12 @@ final class TranslateChapterJob implements JobInterface {
 	private static function signature( array $blocks ): array {
 		$signature = array();
 		foreach ( $blocks as $block ) {
+			$block = (array) $block;
+			// Props vuote = stdClass (normalizzazione schema): cast obbligato.
+			$props       = (array) ( $block['props'] ?? array() );
 			$signature[] = ( $block['id'] ?? '' ) . '|' . ( $block['type'] ?? '' );
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
-				$signature = array_merge( $signature, self::signature( $block['props']['blocks'] ) );
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+				$signature = array_merge( $signature, self::signature( $props['blocks'] ) );
 			}
 		}
 		return $signature;

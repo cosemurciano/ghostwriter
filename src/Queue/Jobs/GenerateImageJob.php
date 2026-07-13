@@ -116,11 +116,15 @@ final class GenerateImageJob implements JobInterface {
 	 */
 	public static function has_unresolved_figures( array $blocks ): bool {
 		foreach ( $blocks as $block ) {
-			if ( 'figura' === ( $block['type'] ?? '' ) && empty( $block['props']['attachment_id'] ) ) {
+			$block = (array) $block;
+			// Le props vuote possono essere stdClass (normalizzazione schema):
+			// il cast evita il fatal "Cannot use object of type stdClass as array".
+			$props = (array) ( $block['props'] ?? array() );
+			if ( 'figura' === ( $block['type'] ?? '' ) && empty( $props['attachment_id'] ) ) {
 				return true;
 			}
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] )
-				&& self::has_unresolved_figures( $block['props']['blocks'] ) ) {
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] )
+				&& self::has_unresolved_figures( $props['blocks'] ) ) {
 				return true;
 			}
 		}
@@ -135,11 +139,13 @@ final class GenerateImageJob implements JobInterface {
 	public static function unresolved_figure_ids( array $blocks ): array {
 		$ids = array();
 		foreach ( $blocks as $block ) {
-			if ( 'figura' === ( $block['type'] ?? '' ) && empty( $block['props']['attachment_id'] ) && ! empty( $block['id'] ) ) {
+			$block = (array) $block;
+			$props = (array) ( $block['props'] ?? array() );
+			if ( 'figura' === ( $block['type'] ?? '' ) && empty( $props['attachment_id'] ) && ! empty( $block['id'] ) ) {
 				$ids[] = (string) $block['id'];
 			}
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
-				$ids = array_merge( $ids, self::unresolved_figure_ids( $block['props']['blocks'] ) );
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+				$ids = array_merge( $ids, self::unresolved_figure_ids( $props['blocks'] ) );
 			}
 		}
 		return $ids;

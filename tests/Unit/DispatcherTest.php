@@ -58,6 +58,10 @@ final class DispatcherTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 		Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
+		// run() controlla il flag di stop con get_post_meta se la funzione
+		// esiste: altri test la definiscono via Patchwork, quindi va stubbata
+		// sempre ('' = pipeline non ferma).
+		Functions\when( 'get_post_meta' )->justReturn( '' );
 
 		SpyJob::reset();
 		$this->enqueued  = array();

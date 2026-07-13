@@ -432,6 +432,7 @@ final class ChaptersController {
 		if ( null === $block ) {
 			return self::not_found( 'Blocco' );
 		}
+		$block['props'] = (array) ( $block['props'] ?? array() );
 		if ( 'figura' !== ( $block['type'] ?? '' ) ) {
 			return new WP_Error( 'gw_invalid_block', 'Il blocco non è una figura: la generazione immagini vale solo per le figure.', array( 'status' => 409 ) );
 		}
