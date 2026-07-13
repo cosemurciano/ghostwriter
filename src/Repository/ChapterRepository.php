@@ -112,7 +112,18 @@ class ChapterRepository {
 	 */
 	public function get_content( int $chapter_id ): ?array {
 		$content = get_post_meta( $chapter_id, self::META_CONTENT, true );
-		return is_array( $content ) ? $content : null;
+		if ( ! is_array( $content ) ) {
+			return null;
+		}
+
+		// In storage le props vuote sono stdClass (per validare contro
+		// "type": "object"), ma i lettori PHP lavorano ad array: qualunque
+		// accesso $block['props'][...] su un oggetto è fatal error. Il
+		// round-trip JSON riconverte tutto ad array puri; save_content
+		// rinormalizza in scrittura.
+		$decoded = json_decode( (string) wp_json_encode( $content ), true );
+
+		return is_array( $decoded ) ? $decoded : $content;
 	}
 
 	/**
@@ -241,11 +252,15 @@ class ChapterRepository {
 	 */
 	private static function find_block_in( array $blocks, string $block_id ): ?array {
 		foreach ( $blocks as $block ) {
+			$block = (array) $block;
+			// Props vuote = stdClass in memoria (normalizzazione schema): il
+			// cast evita il fatal sull'accesso ad array.
+			$props = (array) ( $block['props'] ?? array() );
 			if ( ( $block['id'] ?? '' ) === $block_id ) {
 				return $block;
 			}
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
-				$found = self::find_block_in( $block['props']['blocks'], $block_id );
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+				$found = self::find_block_in( $props['blocks'], $block_id );
 				if ( null !== $found ) {
 					return $found;
 				}
@@ -262,13 +277,15 @@ class ChapterRepository {
 	 */
 	private static function replace_block_in( array $blocks, array $new_block, bool &$replaced ): array {
 		foreach ( $blocks as $i => $block ) {
+			$block = (array) $block;
+			$props = (array) ( $block['props'] ?? array() );
 			if ( ( $block['id'] ?? '' ) === $new_block['id'] ) {
 				$blocks[ $i ] = $new_block;
 				$replaced     = true;
 				return $blocks;
 			}
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
-				$blocks[ $i ]['props']['blocks'] = self::replace_block_in( $block['props']['blocks'], $new_block, $replaced );
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+				$blocks[ $i ]['props']['blocks'] = self::replace_block_in( $props['blocks'], $new_block, $replaced );
 				if ( $replaced ) {
 					return $blocks;
 				}

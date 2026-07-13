@@ -204,14 +204,17 @@ final class MockProvider implements ProviderInterface {
 	 */
 	private static function translate_blocks( array $blocks, string $lang ): array {
 		foreach ( $blocks as $i => $block ) {
+			$block = (array) $block;
+			// Props vuote = stdClass (normalizzazione schema): cast obbligato.
+			$props                   = (array) ( $block['props'] ?? array() );
 			$blocks[ $i ]['version'] = 1;
 			foreach ( array( 'text', 'title', 'caption' ) as $key ) {
-				if ( ! empty( $block['props'][ $key ] ) && is_string( $block['props'][ $key ] ) ) {
-					$blocks[ $i ]['props'][ $key ] = "[{$lang}] " . $block['props'][ $key ];
+				if ( ! empty( $props[ $key ] ) && is_string( $props[ $key ] ) ) {
+					$blocks[ $i ]['props'][ $key ] = "[{$lang}] " . $props[ $key ];
 				}
 			}
-			if ( ! empty( $block['props']['blocks'] ) && is_array( $block['props']['blocks'] ) ) {
-				$blocks[ $i ]['props']['blocks'] = self::translate_blocks( $block['props']['blocks'], $lang );
+			if ( ! empty( $props['blocks'] ) && is_array( $props['blocks'] ) ) {
+				$blocks[ $i ]['props']['blocks'] = self::translate_blocks( $props['blocks'], $lang );
 			}
 		}
 		return $blocks;

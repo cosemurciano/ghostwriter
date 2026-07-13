@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Tests\Unit;
 
+use Brain\Monkey;
+use Brain\Monkey\Functions;
 use Ghostwriter\Domain\Dossier;
 use Ghostwriter\Repository\ProjectRepository;
 use PHPUnit\Framework\TestCase;
@@ -12,6 +14,19 @@ use PHPUnit\Framework\TestCase;
  * in-memory al posto dei meta WordPress.
  */
 final class DossierTest extends TestCase {
+
+	protected function setUp(): void {
+		parent::setUp();
+		Monkey\setUp();
+		// Il lock del dossier svuota la cache meta se wp_cache_delete esiste:
+		// altri test la definiscono via Patchwork, quindi va stubbata sempre.
+		Functions\when( 'wp_cache_delete' )->justReturn( true );
+	}
+
+	protected function tearDown(): void {
+		Monkey\tearDown();
+		parent::tearDown();
+	}
 
 	/**
 	 * Repository fittizio: dossier in memoria, nessuna chiamata WP.

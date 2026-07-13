@@ -175,7 +175,9 @@ final class ChapterEditor {
 		$figures = array();
 		$locked  = array();
 		foreach ( $blocks as $block ) {
-			$type = (string) ( $block['type'] ?? '' );
+			$block          = (array) $block;
+			$block['props'] = (array) ( $block['props'] ?? array() );
+			$type           = (string) ( $block['type'] ?? '' );
 			if ( 'figura' === $type && empty( $block['props']['attachment_id'] ) ) {
 				$figures[] = $block;
 			} elseif ( in_array( $type, array( 'box_approfondimento', 'esercizio', 'blurb' ), true ) ) {
