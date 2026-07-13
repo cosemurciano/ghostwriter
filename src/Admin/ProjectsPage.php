@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Ghostwriter\Admin;
 
+use Ghostwriter\Ai\ModelCatalog;
 use Ghostwriter\Ai\SkillsManager;
 use Ghostwriter\Ai\UsageMeter;
 use Ghostwriter\Domain\StateMachine;
@@ -315,13 +316,13 @@ final class ProjectsPage {
 		foreach ( array( 'anthropic' => 'Anthropic (Claude)', 'openai' => 'OpenAI', 'mock' => 'Mock (senza AI)' ) as $value => $label ) {
 			echo '<option value="' . esc_attr( $value ) . '"' . selected( (string) ( $ai['provider'] ?? '' ), $value, false ) . '>' . esc_html( $label ) . '</option>';
 		}
-		echo '</select> <input type="text" name="model" value="' . esc_attr( (string) ( $ai['model'] ?? '' ) ) . '" class="regular-text"/>'
-			. '<p class="description">' . esc_html__( 'Vale per le prossime chiamate: i capitoli già generati restano.', 'ghostwriter' ) . '</p></td></tr>';
+		echo '</select> ' . ModelCatalog::picker( 'text', 'model', (string) ( $ai['provider'] ?? '' ), (string) ( $ai['model'] ?? '' ), 'provider' ) // phpcs:ignore WordPress.Security.EscapeOutput
+			. '<p class="description">' . esc_html__( 'I modelli attualmente disponibili; "Personalizzato…" accetta un ID modello a mano. Vale per le prossime chiamate: i capitoli già generati restano.', 'ghostwriter' ) . '</p></td></tr>';
 		echo '<tr><th>' . esc_html__( 'Immagini', 'ghostwriter' ) . '</th><td><select name="image_provider">'
 			. '<option value=""' . selected( (string) ( $ai['image_provider'] ?? '' ), '', false ) . '>' . esc_html__( '— nessuna generazione —', 'ghostwriter' ) . '</option>'
 			. '<option value="openai"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'openai', false ) . '>OpenAI</option>'
 			. '<option value="mock"' . selected( (string) ( $ai['image_provider'] ?? '' ), 'mock', false ) . '>mock</option>'
-			. '</select> <input type="text" name="image_model" value="' . esc_attr( (string) ( $ai['image_model'] ?? '' ) ) . '" placeholder="gpt-image-1"/></td></tr>';
+			. '</select> ' . ModelCatalog::picker( 'image', 'image_model', (string) ( $ai['image_provider'] ?? '' ), (string) ( $ai['image_model'] ?? '' ), 'image_provider' ) . '</td></tr>'; // phpcs:ignore WordPress.Security.EscapeOutput
 		echo '<tr><th>' . esc_html__( 'Ritmo di scrittura', 'ghostwriter' ) . '</th><td><label>'
 			. '<input type="checkbox" name="auto_advance" value="1"' . checked( (bool) ( $ai['auto_advance'] ?? false ), true, false ) . '/> '
 			. esc_html__( 'Scrivi tutti i capitoli in sequenza automatica', 'ghostwriter' ) . '</label>'

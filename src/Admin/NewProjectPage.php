@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Ghostwriter\Admin;
 
 use Ghostwriter\Ai\ApiKeys;
+use Ghostwriter\Ai\ModelCatalog;
 
 /**
  * Creazione progetto: form a sezioni in stile WordPress (form-table),
@@ -105,20 +106,21 @@ final class NewProjectPage {
 
 		$anthropic_ok = null !== ApiKeys::anthropic();
 		$openai_ok    = null !== ApiKeys::openai();
+		$provider     = $anthropic_ok ? 'anthropic' : ( $openai_ok ? 'openai' : 'mock' );
 		$this->row(
 			__( 'Provider e modello', 'ghostwriter' ),
 			'<select name="provider">'
-			. '<option value="anthropic"' . ( $anthropic_ok ? '' : ' disabled' ) . '>Anthropic (Claude)' . ( $anthropic_ok ? '' : ' — ' . esc_html__( 'chiave assente', 'ghostwriter' ) ) . '</option>'
-			. '<option value="openai"' . ( $openai_ok ? '' : ' disabled' ) . '>OpenAI' . ( $openai_ok ? '' : ' — ' . esc_html__( 'chiave assente', 'ghostwriter' ) ) . '</option>'
-			. '<option value="mock"' . ( $anthropic_ok || $openai_ok ? '' : ' selected' ) . '>' . esc_html__( 'Mock — prova la pipeline senza AI', 'ghostwriter' ) . '</option>'
-			. '</select> <input type="text" name="model" value="claude-sonnet-4-5" class="regular-text" aria-label="' . esc_attr__( 'Modello', 'ghostwriter' ) . '" />',
-			__( 'Le chiavi API si definiscono in wp-config.php (vedi Impostazioni).', 'ghostwriter' )
+			. '<option value="anthropic"' . ( $anthropic_ok ? selected( $provider, 'anthropic', false ) : ' disabled' ) . '>Anthropic (Claude)' . ( $anthropic_ok ? '' : ' — ' . esc_html__( 'chiave assente', 'ghostwriter' ) ) . '</option>'
+			. '<option value="openai"' . ( $openai_ok ? selected( $provider, 'openai', false ) : ' disabled' ) . '>OpenAI' . ( $openai_ok ? '' : ' — ' . esc_html__( 'chiave assente', 'ghostwriter' ) ) . '</option>'
+			. '<option value="mock"' . selected( $provider, 'mock', false ) . '>' . esc_html__( 'Mock — prova la pipeline senza AI', 'ghostwriter' ) . '</option>'
+			. '</select> ' . ModelCatalog::picker( 'text', 'model', $provider, '', 'provider' ),
+			__( 'I modelli attualmente disponibili per il provider scelto; "Personalizzato…" accetta un ID modello a mano. Le chiavi API si definiscono in wp-config.php (vedi Impostazioni).', 'ghostwriter' )
 		);
 		$this->row(
 			__( 'Immagini', 'ghostwriter' ),
 			'<select name="image_provider"><option value="">' . esc_html__( '— nessuna generazione —', 'ghostwriter' ) . '</option>'
 			. '<option value="openai"' . ( $openai_ok ? '' : ' disabled' ) . '>OpenAI</option><option value="mock">mock</option></select> '
-			. '<input type="text" name="image_model" placeholder="gpt-image-1" aria-label="' . esc_attr__( 'Modello immagini', 'ghostwriter' ) . '" />',
+			. ModelCatalog::picker( 'image', 'image_model', '', '', 'image_provider' ),
 			__( 'Per figure, artwork di copertina. Con Claude come provider testi serve un provider immagini dedicato.', 'ghostwriter' )
 		);
 		echo '</table>';

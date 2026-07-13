@@ -53,6 +53,7 @@ return array(
     'Ghostwriter\\Ai\\ImageResult' => $baseDir . '/src/Ai/ImageResult.php',
     'Ghostwriter\\Ai\\LocalRagService' => $baseDir . '/src/Ai/LocalRagService.php',
     'Ghostwriter\\Ai\\MockProvider' => $baseDir . '/src/Ai/MockProvider.php',
+    'Ghostwriter\\Ai\\ModelCatalog' => $baseDir . '/src/Ai/ModelCatalog.php',
     'Ghostwriter\\Ai\\NullRagService' => $baseDir . '/src/Ai/NullRagService.php',
     'Ghostwriter\\Ai\\OpenAiProvider' => $baseDir . '/src/Ai/OpenAiProvider.php',
     'Ghostwriter\\Ai\\PhaseSchemas' => $baseDir . '/src/Ai/PhaseSchemas.php',

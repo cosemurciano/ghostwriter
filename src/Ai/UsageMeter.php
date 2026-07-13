@@ -127,7 +127,8 @@ final class UsageMeter {
 		$rates = apply_filters(
 			'gw_model_rates',
 			array(
-				'claude-opus'   => array( 14.0, 70.0 ),
+				'claude-fable'  => array( 9.3, 46.5 ),
+				'claude-opus'   => array( 4.7, 23.5 ),
 				'claude-sonnet' => array( 2.8, 14.0 ),
 				'claude-haiku'  => array( 0.9, 4.5 ),
 				'gpt-5'         => array( 1.2, 9.0 ),

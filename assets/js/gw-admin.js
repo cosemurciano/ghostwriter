@@ -279,6 +279,15 @@
 		} );
 	} );
 
+	// Modello effettivo dal picker: il valore del select attivo, oppure il
+	// campo libero quando è selezionato "Personalizzato…".
+	function pickedModel( data, key ) {
+		if ( '__custom__' === data[ key ] ) {
+			return ( data[ key + '_custom' ] || '' ).trim();
+		}
+		return data[ key ] || '';
+	}
+
 	// Form JSON: <form data-gw-form="POST /projects" data-gw-transform="newProject">
 	var transforms = {
 		// Nuovo progetto: dai campi del form alla config conforme allo schema.
@@ -303,7 +312,7 @@
 				skills: [],
 				ai: {
 					provider: data.provider,
-					model: data.model,
+					model: pickedModel( data, 'model' ),
 				},
 			};
 			if ( data.target_words ) {
@@ -311,7 +320,7 @@
 			}
 			if ( data.image_provider ) {
 				config.ai.image_provider = data.image_provider;
-				config.ai.image_model = data.image_model || '';
+				config.ai.image_model = pickedModel( data, 'image_model' );
 			}
 			// Libro manuale: nessuna chiamata AI. Provider mock solo come
 			// segnaposto per lo schema; il flag manual governa la UI.
@@ -379,9 +388,9 @@
 				},
 				ai: {
 					provider: data.provider,
-					model: data.model,
+					model: pickedModel( data, 'model' ),
 					image_provider: data.image_provider || '',
-					image_model: data.image_model || '',
+					image_model: pickedModel( data, 'image_model' ),
 					auto_advance: !! data.auto_advance,
 				},
 			};
@@ -663,6 +672,45 @@
 		}
 		document.querySelectorAll( '.gw-ai-only' ).forEach( function ( box ) {
 			box.style.display = 'manual' === radio.value ? 'none' : '';
+		} );
+	} );
+
+	// Modelli AI: al cambio provider si mostra il select dei suoi modelli
+	// (gli altri restano disabled, fuori dal FormData); "Personalizzato…"
+	// apre il campo libero per un ID modello non ancora in catalogo.
+	function syncModelPicker( picker, provider ) {
+		var active = null;
+		picker.querySelectorAll( 'select[data-gw-models-for]' ).forEach( function ( select ) {
+			var match = select.getAttribute( 'data-gw-models-for' ) === provider;
+			select.disabled = ! match;
+			select.hidden = ! match;
+			if ( match ) {
+				active = select;
+			}
+		} );
+		var custom = picker.querySelector( '.gw-model-custom' );
+		if ( custom ) {
+			custom.hidden = ! active || '__custom__' !== active.value;
+		}
+	}
+
+	document.addEventListener( 'change', function ( event ) {
+		var target = event.target;
+		var picker = target.closest( '.gw-model-picker' );
+		if ( picker ) {
+			syncModelPicker( picker, ( function () {
+				var scope = picker.closest( 'form' ) || document;
+				var field = scope.querySelector( '[name="' + picker.getAttribute( 'data-gw-provider-field' ) + '"]' );
+				return field ? field.value : '';
+			}() ) );
+			return;
+		}
+		if ( 'provider' !== target.name && 'image_provider' !== target.name ) {
+			return;
+		}
+		var scope = target.closest( 'form' ) || document;
+		scope.querySelectorAll( '.gw-model-picker[data-gw-provider-field="' + target.name + '"]' ).forEach( function ( box ) {
+			syncModelPicker( box, target.value );
 		} );
 	} );
 

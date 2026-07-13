@@ -104,9 +104,12 @@ final class UsageMeterTest extends TestCase {
 	}
 
 	public function test_cost_estimation_uses_model_rates(): void {
-		// claude-opus: 14 EUR/Mtok in, 70 EUR/Mtok out.
+		// claude-opus: 4,7 EUR/Mtok in, 23,5 EUR/Mtok out.
 		$cost = UsageMeter::estimate_cost( 'claude-opus-4-8', 1_000_000, 100_000 );
-		self::assertEqualsWithDelta( 14.0 + 7.0, $cost, 0.001 );
+		self::assertEqualsWithDelta( 4.7 + 2.35, $cost, 0.001 );
+
+		// claude-fable ha una tariffa propria, più alta della famiglia opus.
+		self::assertGreaterThan( $cost, UsageMeter::estimate_cost( 'claude-fable-5', 1_000_000, 100_000 ) );
 
 		// Modello non mappato: costo 0 (il cap sul costo non scatta).
 		self::assertSame( 0.0, UsageMeter::estimate_cost( 'modello-ignoto', 1_000_000, 1_000_000 ) );
